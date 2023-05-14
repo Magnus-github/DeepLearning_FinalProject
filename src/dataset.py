@@ -40,14 +40,17 @@ class Pets(Dataset):
     def __getfiles__(self):
         return [f'{self.root_dir}{file}' for file in os.listdir(self.root_dir)]
 
-    def __get_item__(self, idx):
+    def __getitem__(self, idx):
         file_name = self.__getfiles__()[idx]
-        # img = self.transform(Image.open(file_name))
-        label = ('_').join(file_name.split('.')[0].split('/')[-1].split('_')[:-1])
+        img = self.transform(Image.open(file_name))
+        label = ('_').join(file_name.split('/')[-1].split('.')[0].split('_')[:-1])
         if label[0].isupper():
             label += "_cat"
         else:
             label += "_dog"
         if self.classification_mode == "binary":
             label = label[-3:]
-        return self.labels[label]
+        return img, self.labels[label]
+    
+    def __len__(self):
+        return len(self.__getfiles__())

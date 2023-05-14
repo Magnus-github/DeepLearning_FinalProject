@@ -19,7 +19,7 @@ import utils
 
 NUM_CATEGORIES = 2
 VALIDATION_ITERATION = 100
-NUM_ITERATIONS = 10000
+NUM_ITERATIONS = 1
 LEARNING_RATE = 1e-4
 WEIGHT_POS = 1
 WEIGHT_NEG = 1
@@ -72,15 +72,15 @@ def train(device: str = "cpu") -> None:
     Args:
         device: The device to train on.
     """
-    wandb.init(project="Object_detection_wAugmentation-1")
+    # wandb.init(project="Object_detection_wAugmentation-1")
 
     # Init model
-    classifier = Classifier().to(device)
+    classifier = Classifier(BATCH_SIZE).to(device)
 
-    wandb.watch(classifier)
+    # wandb.watch(classifier)
 
     dataset = Pets(
-        root_dir="/data/images",
+        root_dir="../data/images/",
         transform=classifier.input_transform,
         classification_mode="binary"
     )
@@ -91,20 +91,21 @@ def train(device: str = "cpu") -> None:
         train_data, batch_size=BATCH_SIZE, shuffle=True
     )
 
+
     val_dataloader = torch.utils.data.DataLoader(
         val_data, batch_size=BATCH_SIZE
     )
 
     # training params
-    wandb.config.max_iterations = NUM_ITERATIONS
-    wandb.config.learning_rate = LEARNING_RATE
-    wandb.config.weight_pos = WEIGHT_POS
-    wandb.config.weight_neg = WEIGHT_NEG
-    wandb.config.weight_reg = WEIGHT_REG
+    # wandb.config.max_iterations = NUM_ITERATIONS
+    # wandb.config.learning_rate = LEARNING_RATE
+    # wandb.config.weight_pos = WEIGHT_POS
+    # wandb.config.weight_neg = WEIGHT_NEG
+    # wandb.config.weight_reg = WEIGHT_REG
 
     # run name (to easily identify model later)
     time_string = datetime.now().strftime("%Y-%m-%d_%H-%M-%S-%f")
-    run_name = wandb.config.run_name = "det_{}".format(time_string)
+    # run_name = wandb.config.run_name = "det_{}".format(time_string)
 
     # init optimizer
     optimizer = torch.optim.Adam(classifier.parameters(), lr=LEARNING_RATE)
@@ -150,65 +151,72 @@ def train(device: str = "cpu") -> None:
     #     ax.add_patch(rect)
     #     plt.show()
     # exit("forced exit")
+
+
     print("Training started...")
 
     current_iteration = 1
     while current_iteration <= NUM_ITERATIONS:
-        for img_batch, target_batch in train_dataloader:
+        for sample in train_dataloader:
+
+            # print(sample)
+            img_batch = sample['data']
+            target_batch = sample['target']
             img_batch = img_batch.to(device)
             target_batch = target_batch.to(device)
 
             # run network
             out = classifier(img_batch)
+            print(out)
 
-            reg_mse, pos_mse, neg_mse = compute_loss(out, target_batch)
-            loss = WEIGHT_POS * pos_mse + WEIGHT_REG * reg_mse + WEIGHT_NEG * neg_mse
+            # reg_mse, pos_mse, neg_mse = compute_loss(out, target_batch)
+            # loss = WEIGHT_POS * pos_mse + WEIGHT_REG * reg_mse + WEIGHT_NEG * neg_mse
 
-            # optimize
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
+            # # optimize
+            # optimizer.zero_grad()
+            # loss.backward()
+            # optimizer.step()
 
-            wandb.log(
-                {
-                    "total loss": loss.item(),
-                    "loss pos": pos_mse.item(),
-                    "loss neg": neg_mse.item(),
-                    "loss reg": reg_mse.item(),
-                },
-                step=current_iteration,
-            )
+            # wandb.log(
+            #     {
+            #         "total loss": loss.item(),
+            #         "loss pos": pos_mse.item(),
+            #         "loss neg": neg_mse.item(),
+            #         "loss reg": reg_mse.item(),
+            #     },
+            #     step=current_iteration,
+            # )
 
-            print(
-                "Iteration: {}, loss: {}".format(
-                    current_iteration, loss.item()),
-            )
+            # print(
+            #     "Iteration: {}, loss: {}".format(
+            #         current_iteration, loss.item()),
+            # )
 
             # Validate every N iterations
-            if current_iteration % VALIDATION_ITERATION == 0:
-                validate(classifier, val_dataloader, current_iteration, device)
+            # if current_iteration % VALIDATION_ITERATION == 0:
+            #     validate(classifier, val_dataloader, current_iteration, device)
 
-            # generate visualization every N iterations
-            if current_iteration % 250 == 0 and show_test_images:
-                classifier.eval()
-                with torch.no_grad():
-                    out = classifier(test_images).cpu()
+            # # generate visualization every N iterations
+            # if current_iteration % 250 == 0 and show_test_images:
+            #     classifier.eval()
+            #     with torch.no_grad():
+            #         out = classifier(test_images).cpu()
 
-                    for i, test_image in enumerate(test_images):
-                        figure, ax = plt.subplots(1)
-                        plt.imshow(test_image.cpu().permute(1, 2, 0))
-                        plt.imshow(
-                            out[i, 4, :, :],
-                            interpolation="nearest",
-                            extent=(0, 640, 480, 0),
-                            alpha=0.7,
-                        )
+            #         for i, test_image in enumerate(test_images):
+            #             figure, ax = plt.subplots(1)
+            #             plt.imshow(test_image.cpu().permute(1, 2, 0))
+            #             plt.imshow(
+            #                 out[i, 4, :, :],
+            #                 interpolation="nearest",
+            #                 extent=(0, 640, 480, 0),
+            #                 alpha=0.7,
+            #             )
 
-                        wandb.log(
-                            {"test_img_{i}".format(i=i): figure}, step=current_iteration
-                        )
-                        plt.close()
-                classifier.train()
+            #             wandb.log(
+            #                 {"test_img_{i}".format(i=i): figure}, step=current_iteration
+            #             )
+            #             plt.close()
+            #     classifier.train()
 
             current_iteration += 1
             if current_iteration > NUM_ITERATIONS:
@@ -216,88 +224,88 @@ def train(device: str = "cpu") -> None:
 
     print("\nTraining completed (max iterations reached)")
 
-    model_path = "{}.pt".format(run_name)
-    utils.save_model(classifier, model_path)
-    wandb.save(model_path)
+    # model_path = "{}.pt".format(run_name)
+    # utils.save_model(classifier, model_path)
+    # wandb.save(model_path)
 
-    print("Model weights saved at {}".format(model_path))
+    # print("Model weights saved at {}".format(model_path))
 
 
-def validate(
-    classifier: Classifier,
-    val_dataloader: torch.utils.data.DataLoader,
-    current_iteration: int,
-    device: str,
-) -> None:
-    """Compute validation metrics and log to wandb.
+# def validate(
+#     classifier: Classifier,
+#     val_dataloader: torch.utils.data.DataLoader,
+#     current_iteration: int,
+#     device: str,
+# ) -> None:
+#     """Compute validation metrics and log to wandb.
 
-    Args:
-        detector: The detector module to validate.
-        val_dataloader: The dataloader for the validation dataset.
-        current_iteration: The current training iteration. Used for logging.
-        device: The device to run validation on.
-    """
-    detector.eval()
-    coco_pred = copy.deepcopy(val_dataloader.dataset.coco)
-    coco_pred.dataset["annotations"] = []
-    with torch.no_grad():
-        count = total_pos_mse = total_reg_mse = total_neg_mse = loss = 0
-        image_id = ann_id = 0
-        for val_img_batch, val_target_batch in val_dataloader:
-            val_img_batch = val_img_batch.to(device)
-            val_target_batch = val_target_batch.to(device)
-            val_out = detector(val_img_batch)
-            reg_mse, pos_mse, neg_mse = compute_loss(val_out, val_target_batch)
-            total_reg_mse += reg_mse
-            total_pos_mse += pos_mse
-            total_neg_mse += neg_mse
-            loss += WEIGHT_POS * pos_mse + WEIGHT_REG * reg_mse + WEIGHT_NEG * neg_mse
-            imgs_bbs = detector.decode_output(val_out, topk=100)
-            for img_bbs in imgs_bbs:
-                for img_bb in img_bbs:
-                    coco_pred.dataset["annotations"].append(
-                        {
-                            "id": ann_id,
-                            "bbox": [
-                                img_bb["x"],
-                                img_bb["y"],
-                                img_bb["width"],
-                                img_bb["height"],
-                            ],
-                            "area": img_bb["width"] * img_bb["height"],
-                            "category_id": 1,  # TODO replace with predicted category id
-                            "score": img_bb["score"],
-                            "image_id": image_id,
-                        }
-                    )
-                    ann_id += 1
-                image_id += 1
-            count += len(val_img_batch) / BATCH_SIZE
-        coco_pred.createIndex()
-        coco_eval = COCOeval(val_dataloader.dataset.coco,
-                             coco_pred, iouType="bbox")
-        coco_eval.params.useCats = 0  # TODO replace with 1 when categories are added
-        coco_eval.evaluate()
-        coco_eval.accumulate()
-        coco_eval.summarize()
-        wandb.log(
-            {
-                "total val loss": (loss / count),
-                "val loss pos": (total_pos_mse / count),
-                "val loss neg": (total_neg_mse / count),
-                "val loss reg": (total_reg_mse / count),
-                "val AP @IoU 0.5:0.95": coco_eval.stats[0],
-                "val AP @IoU 0.5": coco_eval.stats[1],
-                "val AR @IoU 0.5:0.95": coco_eval.stats[8],
-            },
-            step=current_iteration,
-        )
-        print(
-            "Validation: {}, validation loss: {}".format(
-                current_iteration, loss / count
-            ),
-        )
-    classifier.train()
+#     Args:
+#         detector: The detector module to validate.
+#         val_dataloader: The dataloader for the validation dataset.
+#         current_iteration: The current training iteration. Used for logging.
+#         device: The device to run validation on.
+#     """
+#     detector.eval()
+#     coco_pred = copy.deepcopy(val_dataloader.dataset.coco)
+#     coco_pred.dataset["annotations"] = []
+#     with torch.no_grad():
+#         count = total_pos_mse = total_reg_mse = total_neg_mse = loss = 0
+#         image_id = ann_id = 0
+#         for val_img_batch, val_target_batch in val_dataloader:
+#             val_img_batch = val_img_batch.to(device)
+#             val_target_batch = val_target_batch.to(device)
+#             val_out = detector(val_img_batch)
+#             reg_mse, pos_mse, neg_mse = compute_loss(val_out, val_target_batch)
+#             total_reg_mse += reg_mse
+#             total_pos_mse += pos_mse
+#             total_neg_mse += neg_mse
+#             loss += WEIGHT_POS * pos_mse + WEIGHT_REG * reg_mse + WEIGHT_NEG * neg_mse
+#             imgs_bbs = detector.decode_output(val_out, topk=100)
+#             for img_bbs in imgs_bbs:
+#                 for img_bb in img_bbs:
+#                     coco_pred.dataset["annotations"].append(
+#                         {
+#                             "id": ann_id,
+#                             "bbox": [
+#                                 img_bb["x"],
+#                                 img_bb["y"],
+#                                 img_bb["width"],
+#                                 img_bb["height"],
+#                             ],
+#                             "area": img_bb["width"] * img_bb["height"],
+#                             "category_id": 1,  # TODO replace with predicted category id
+#                             "score": img_bb["score"],
+#                             "image_id": image_id,
+#                         }
+#                     )
+#                     ann_id += 1
+#                 image_id += 1
+#             count += len(val_img_batch) / BATCH_SIZE
+#         coco_pred.createIndex()
+#         coco_eval = COCOeval(val_dataloader.dataset.coco,
+#                              coco_pred, iouType="bbox")
+#         coco_eval.params.useCats = 0  # TODO replace with 1 when categories are added
+#         coco_eval.evaluate()
+#         coco_eval.accumulate()
+#         coco_eval.summarize()
+#         wandb.log(
+#             {
+#                 "total val loss": (loss / count),
+#                 "val loss pos": (total_pos_mse / count),
+#                 "val loss neg": (total_neg_mse / count),
+#                 "val loss reg": (total_reg_mse / count),
+#                 "val AP @IoU 0.5:0.95": coco_eval.stats[0],
+#                 "val AP @IoU 0.5": coco_eval.stats[1],
+#                 "val AR @IoU 0.5:0.95": coco_eval.stats[8],
+#             },
+#             step=current_iteration,
+#         )
+#         print(
+#             "Validation: {}, validation loss: {}".format(
+#                 current_iteration, loss / count
+#             ),
+#         )
+#     classifier.train()
 
 
 if __name__ == "__main__":

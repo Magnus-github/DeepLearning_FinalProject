@@ -27,8 +27,6 @@ class Classifier(nn.Module):
         # output of mobilenet_v2 will be 1280x23x40 for 720x1280 input images
         # output of mobilenet_v2 will be 1280x15x20 for 480x640 input images
 
-        self.features_flat = nn.Flatten(-3,-1)(self.features)
-
         self.head = nn.Linear(batch_size, 2)
 
         self.img_height = 192  # 720#480.0
@@ -58,7 +56,8 @@ class Classifier(nn.Module):
         Returns:
             The output tensor containing the class for the image (one hot encoded).
         """
-        features_flat = self.features_flat(self.features(inp))
+        features = self.features(inp)
+        features_flat = nn.Flatten(-3,-1)(features)
         out = self.head(features_flat)  # out size: n_batch x 2
 
         return out
@@ -80,7 +79,7 @@ class Classifier(nn.Module):
         """
       transform = transforms.Compose([
          transforms.PILToTensor(),
-         transforms.resize(224,224),
+         transforms.Resize(224,224),
          transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
       ])
       
