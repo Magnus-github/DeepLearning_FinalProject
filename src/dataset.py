@@ -7,6 +7,7 @@ from torchvision import transforms
 
 class Pets(Dataset):
     def __init__(self, root_dir="data/images/", transform=None, classification_mode="binary") -> None:
+        print(os.listdir(os.curdir))
         self.root_dir = root_dir
         if transform is None:
             self.transform = transforms.Compose([

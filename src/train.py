@@ -75,12 +75,17 @@ def train(device: str = "cpu") -> None:
     # wandb.init(project="Object_detection_wAugmentation-1")
 
     # Init model
-    classifier = Classifier(BATCH_SIZE).to(device)
+    classifier = Classifier().to(device)
 
     # wandb.watch(classifier)
-
+    print(os.listdir(os.curdir))
+    root_dir = "."
+    if "data" in os.listdir(os.curdir):
+        root_dir = "./data/images/"
+    else:
+        root_dir = "../data/images/"
     dataset = Pets(
-        root_dir="../data/images/",
+        root_dir=root_dir,
         transform=classifier.input_transform,
         classification_mode="binary"
     )
@@ -157,17 +162,18 @@ def train(device: str = "cpu") -> None:
 
     current_iteration = 1
     while current_iteration <= NUM_ITERATIONS:
-        for sample in train_dataloader:
+        for img_batch, target_batch in train_dataloader:
 
-            # print(sample)
-            img_batch = sample['data']
-            target_batch = sample['target']
+            
             img_batch = img_batch.to(device)
             target_batch = target_batch.to(device)
 
             # run network
             out = classifier(img_batch)
+            print(target_batch)
+            print(nn.functional.one_hot(target_batch))
             print(out)
+            print(torch.argmax(out, 1))
 
             # reg_mse, pos_mse, neg_mse = compute_loss(out, target_batch)
             # loss = WEIGHT_POS * pos_mse + WEIGHT_REG * reg_mse + WEIGHT_NEG * neg_mse
@@ -309,13 +315,13 @@ def train(device: str = "cpu") -> None:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    device = parser.add_mutually_exclusive_group(required=True)
-    device.add_argument("--cpu", dest="device",
-                        action="store_const", const="cpu")
-    device.add_argument("--gpu", dest="device",
-                        action="store_const", const="cuda")
-    args = parser.parse_args()
-    train(args.device)
-    #train("cpu")
+    # parser = argparse.ArgumentParser()
+    # device = parser.add_mutually_exclusive_group(required=True)
+    # device.add_argument("--cpu", dest="device",
+    #                     action="store_const", const="cpu")
+    # device.add_argument("--gpu", dest="device",
+    #                     action="store_const", const="cuda")
+    # args = parser.parse_args()
+    # train(args.device)
+    train("cpu")
     
