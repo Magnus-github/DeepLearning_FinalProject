@@ -7,9 +7,8 @@ from typing import Tuple
 
 import matplotlib.pyplot as plt
 import torch
-import wandb
+#import wandb
 from PIL import Image
-from pycocotools.cocoeval import COCOeval
 from torch import nn
 from torch.utils.data import random_split
 
