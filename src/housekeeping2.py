@@ -38,7 +38,7 @@ def findmeanstd(root_dir):
 	return mean,std
 
 
-def housekeeping(root_dir="data/images/",output_dir= "data/processedimages/"):
+def housekeeping(root_dir="data/images/",output_dir= "data/images/"):
 	#[mean, std] = findmeanstd(root_dir)
 	[mean,std] = [[0.4811, 0.4499, 0.3964],[0.2330, 0.2300, 0.2329]]
 
