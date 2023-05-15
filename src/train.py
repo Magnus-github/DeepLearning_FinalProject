@@ -67,6 +67,9 @@ def compute_loss(
 
 
 def train(device: str = "cpu") -> None:
+
+    global TRAIN_SPLIT
+    global VAL_SPLIT
     """Train the network.
 
     Args:
@@ -89,8 +92,10 @@ def train(device: str = "cpu") -> None:
         transform=classifier.input_transform,
         classification_mode="binary"
     )
+    TRAIN_SPLIT = int(len(dataset)*TRAIN_SPLIT)
+    VAL_SPLIT =   int(len(dataset)*VAL_SPLIT)
 
-    train_data, val_data, test_data = random_split(dataset, [TRAIN_SPLIT, VAL_SPLIT, TEST_SPLIT])
+    train_data, val_data, test_data = random_split(dataset, [TRAIN_SPLIT, VAL_SPLIT, len(dataset) - TRAIN_SPLIT-VAL_SPLIT])
 
     train_dataloader = torch.utils.data.DataLoader(
         train_data, batch_size=BATCH_SIZE, shuffle=True
