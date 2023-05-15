@@ -4,6 +4,8 @@ import copy
 import os
 from datetime import datetime
 from typing import Tuple
+from torchvision import transforms
+
 
 import matplotlib.pyplot as plt
 import torch
@@ -16,17 +18,20 @@ from classifier import Classifier
 from dataset import Pets
 import utils
 
+
 NUM_CATEGORIES = 2
 VALIDATION_ITERATION = 100
-NUM_ITERATIONS = 1
-LEARNING_RATE = 1e-4
+NUM_ITERATIONS = 5
+LEARNING_RATE = 1e-5
 WEIGHT_POS = 1
 WEIGHT_NEG = 1
 WEIGHT_REG = 1
-BATCH_SIZE = 8
+BATCH_SIZE = 10
 TRAIN_SPLIT = 0.8
 VAL_SPLIT = 0.1
 TEST_SPLIT = 0.1
+
+
 
 
 def compute_loss(
@@ -39,30 +44,13 @@ def compute_loss(
         target_batch: Batched targets. shape (N,C,H,W).
 
     Returns:
-        Tuple of three separate loss terms:
-            reg_mse: Mean squared error of regression targets.
-            pos_mse: Mean squared error of positive confidence channel.
-            neg_mse: Mean squared error of negative confidence channel.
+        cross-entropy loss
     """
     # positive / negative indices
     # (this could be passed from input_transform to avoid recomputation)
-    pos_indices = torch.nonzero(target_batch[:, 4, :, :] == 1, as_tuple=True)
-    neg_indices = torch.nonzero(target_batch[:, 4, :, :] == 0, as_tuple=True)
-
-    # compute loss
-    reg_mse = nn.functional.mse_loss(
-        prediction_batch[pos_indices[0], 0:4, pos_indices[1], pos_indices[2]],
-        target_batch[pos_indices[0], 0:4, pos_indices[1], pos_indices[2]],
-    )
-    pos_mse = nn.functional.mse_loss(
-        prediction_batch[pos_indices[0], 4, pos_indices[1], pos_indices[2]],
-        target_batch[pos_indices[0], 4, pos_indices[1], pos_indices[2]],
-    )
-    neg_mse = nn.functional.mse_loss(
-        prediction_batch[neg_indices[0], 4, neg_indices[1], neg_indices[2]],
-        target_batch[neg_indices[0], 4, neg_indices[1], neg_indices[2]],
-    )
-    return reg_mse, pos_mse, neg_mse
+    
+    loss= torch.nn.functional.binary_cross_entropy(prediction_batch,target_batch.type(torch.float))
+    return loss
 
 
 def train(device: str = "cpu") -> None:
@@ -77,7 +65,7 @@ def train(device: str = "cpu") -> None:
     classifier = Classifier().to(device)
 
     # wandb.watch(classifier)
-    print(os.listdir(os.curdir))
+    #print(os.listdir(os.curdir))
     root_dir = "."
     if "data" in os.listdir(os.curdir):
         root_dir = "./data/images/"
@@ -97,7 +85,11 @@ def train(device: str = "cpu") -> None:
 
 
     val_dataloader = torch.utils.data.DataLoader(
-        val_data, batch_size=BATCH_SIZE
+        val_data, batch_size=BATCH_SIZE , shuffle=False
+    )
+
+    test_dataloader = torch.utils.data.DataLoader(
+         test_data, batch_size=100, shuffle=False
     )
 
     # training params
@@ -169,19 +161,17 @@ def train(device: str = "cpu") -> None:
 
             # run network
             out = classifier(img_batch)
-            print(target_batch)
-            print(nn.functional.one_hot(target_batch))
-            print(out)
-            print(torch.argmax(out, 1))
+            # print(target_batch)
+            # print(nn.functional.one_hot(target_batch))
+            # print(out)
+            # print(torch.argmax(out, 1))
 
-            # reg_mse, pos_mse, neg_mse = compute_loss(out, target_batch)
-            # loss = WEIGHT_POS * pos_mse + WEIGHT_REG * reg_mse + WEIGHT_NEG * neg_mse
+            loss = compute_loss(out, nn.functional.one_hot(target_batch))
 
             # # optimize
-            # optimizer.zero_grad()
-            # loss.backward()
-            # optimizer.step()
-
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
             # wandb.log(
             #     {
             #         "total loss": loss.item(),
@@ -192,10 +182,10 @@ def train(device: str = "cpu") -> None:
             #     step=current_iteration,
             # )
 
-            # print(
-            #     "Iteration: {}, loss: {}".format(
-            #         current_iteration, loss.item()),
-            # )
+            print(
+                "Iteration: {}, loss: {}".format(
+                    current_iteration, loss.item()),
+            )
 
             # Validate every N iterations
             # if current_iteration % VALIDATION_ITERATION == 0:
@@ -229,6 +219,19 @@ def train(device: str = "cpu") -> None:
 
     print("\nTraining completed (max iterations reached)")
 
+    classifier.eval()
+    acc = 0
+    all = 0
+    for i, (test_imgs, test_target) in enumerate(test_dataloader):
+        test_out = classifier(test_imgs)
+        test_out = torch.argmax(test_out, 1)
+        acc += 1 - (test_out-test_target).count_nonzero()/len(test_target)
+        print(acc/(i+1))
+        all = i+1
+    acc = acc/all
+    print("FINAL: ",acc)
+
+
     # model_path = "{}.pt".format(run_name)
     # utils.save_model(classifier, model_path)
     # wandb.save(model_path)
@@ -236,12 +239,12 @@ def train(device: str = "cpu") -> None:
     # print("Model weights saved at {}".format(model_path))
 
 
-# def validate(
-#     classifier: Classifier,
-#     val_dataloader: torch.utils.data.DataLoader,
-#     current_iteration: int,
-#     device: str,
-# ) -> None:
+def validate(
+    classifier: Classifier,
+    val_dataloader: torch.utils.data.DataLoader,
+    current_iteration: int,
+    device: str,
+) -> None:
 #     """Compute validation metrics and log to wandb.
 
 #     Args:
@@ -250,67 +253,32 @@ def train(device: str = "cpu") -> None:
 #         current_iteration: The current training iteration. Used for logging.
 #         device: The device to run validation on.
 #     """
-#     detector.eval()
+    classifier.eval()
 #     coco_pred = copy.deepcopy(val_dataloader.dataset.coco)
 #     coco_pred.dataset["annotations"] = []
 #     with torch.no_grad():
-#         count = total_pos_mse = total_reg_mse = total_neg_mse = loss = 0
+    count = total_loss = 0
 #         image_id = ann_id = 0
-#         for val_img_batch, val_target_batch in val_dataloader:
-#             val_img_batch = val_img_batch.to(device)
-#             val_target_batch = val_target_batch.to(device)
-#             val_out = detector(val_img_batch)
-#             reg_mse, pos_mse, neg_mse = compute_loss(val_out, val_target_batch)
-#             total_reg_mse += reg_mse
-#             total_pos_mse += pos_mse
-#             total_neg_mse += neg_mse
-#             loss += WEIGHT_POS * pos_mse + WEIGHT_REG * reg_mse + WEIGHT_NEG * neg_mse
-#             imgs_bbs = detector.decode_output(val_out, topk=100)
-#             for img_bbs in imgs_bbs:
-#                 for img_bb in img_bbs:
-#                     coco_pred.dataset["annotations"].append(
-#                         {
-#                             "id": ann_id,
-#                             "bbox": [
-#                                 img_bb["x"],
-#                                 img_bb["y"],
-#                                 img_bb["width"],
-#                                 img_bb["height"],
-#                             ],
-#                             "area": img_bb["width"] * img_bb["height"],
-#                             "category_id": 1,  # TODO replace with predicted category id
-#                             "score": img_bb["score"],
-#                             "image_id": image_id,
-#                         }
-#                     )
-#                     ann_id += 1
-#                 image_id += 1
-#             count += len(val_img_batch) / BATCH_SIZE
-#         coco_pred.createIndex()
-#         coco_eval = COCOeval(val_dataloader.dataset.coco,
-#                              coco_pred, iouType="bbox")
-#         coco_eval.params.useCats = 0  # TODO replace with 1 when categories are added
-#         coco_eval.evaluate()
-#         coco_eval.accumulate()
-#         coco_eval.summarize()
+    for val_img_batch, val_target_batch in val_dataloader:
+        val_img_batch = val_img_batch.to(device)
+        val_target_batch = val_target_batch.to(device)
+        val_out = classifier(val_img_batch)
+        loss= compute_loss(val_out, val_target_batch)
+        total_loss +=loss
+
+        count += len(val_img_batch) / BATCH_SIZE
 #         wandb.log(
 #             {
-#                 "total val loss": (loss / count),
-#                 "val loss pos": (total_pos_mse / count),
-#                 "val loss neg": (total_neg_mse / count),
-#                 "val loss reg": (total_reg_mse / count),
-#                 "val AP @IoU 0.5:0.95": coco_eval.stats[0],
-#                 "val AP @IoU 0.5": coco_eval.stats[1],
-#                 "val AR @IoU 0.5:0.95": coco_eval.stats[8],
+#                 "total val loss": (loss / count)
 #             },
 #             step=current_iteration,
 #         )
-#         print(
-#             "Validation: {}, validation loss: {}".format(
-#                 current_iteration, loss / count
-#             ),
-#         )
-#     classifier.train()
+        print(
+            "Validation: {}, validation loss: {}".format(
+                current_iteration, loss / count
+            ),
+        )
+    classifier.train()
 
 
 if __name__ == "__main__":
