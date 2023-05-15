@@ -40,6 +40,9 @@ class Pets(Dataset):
     def __getfiles__(self):
         return [f'{self.root_dir}{file}' for file in os.listdir(self.root_dir)]
 
+    def __len__(self):
+        return len(self.__getfiles__())
+
     def __get_item__(self, idx):
         file_name = self.__getfiles__()[idx]
         # img = self.transform(Image.open(file_name))
