@@ -59,6 +59,10 @@ def train(device: str = "cpu") -> None:
     Args:
         device: The device to train on.
     """
+
+    global TRAIN_SPLIT
+    global VAL_SPLIT
+    global TEST_SPLIT
     # wandb.init(project="Object_detection_wAugmentation-1")
 
     # Init model
@@ -77,7 +81,15 @@ def train(device: str = "cpu") -> None:
         classification_mode="binary"
     )
 
-    train_data, val_data, test_data = random_split(dataset, [TRAIN_SPLIT, VAL_SPLIT, TEST_SPLIT])
+    try:
+        train_data, val_data, test_data = random_split(dataset, [TRAIN_SPLIT, VAL_SPLIT,TEST_SPLIT])
+    except:
+        TRAIN_SPLIT = int(TRAIN_SPLIT * len(dataset))
+        VAL_SPLIT = int(VAL_SPLIT * len(dataset))
+        TEST_SPLIT = int(len(dataset)- TRAIN_SPLIT-VAL_SPLIT)
+
+
+        train_data, val_data, test_data = random_split(dataset, [TRAIN_SPLIT, VAL_SPLIT, TEST_SPLIT])
 
     train_dataloader = torch.utils.data.DataLoader(
         train_data, batch_size=BATCH_SIZE, shuffle=True

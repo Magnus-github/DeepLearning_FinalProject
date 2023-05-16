@@ -88,6 +88,8 @@ class Classifier(nn.Module):
             transform:
                 The composition of transforms to be applied to the image.
         """
+
+
       transform = transforms.Compose([
          transforms.PILToTensor(),
          transforms.ConvertImageDtype(torch.float),
