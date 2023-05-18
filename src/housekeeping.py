@@ -15,7 +15,7 @@ def housekeeping(root_dir="data/images/",output_dir= "data/images/"):
          transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 	])
 
-	os.makedirs(output_dir, exist_ok=True)
+	# os.makedirs(output_dir, exist_ok=True)
 
 	files = [f'{root_dir}{file}' for file in os.listdir(root_dir)]
 
@@ -27,16 +27,16 @@ def housekeeping(root_dir="data/images/",output_dir= "data/images/"):
 			transformed_image = transform(Image.open(file))
 
 			# Convert the transformed image tensor to a PIL image
-			transformed_image_pil = transforms.ToPILImage()(transformed_image)
+			# transformed_image_pil = transforms.ToPILImage()(transformed_image)
 
-			# Extract the filename from the original file path
-			filename = os.path.basename(file)
+			# # Extract the filename from the original file path
+			# filename = os.path.basename(file)
 
-			# Construct the output file path by joining the output directory and the filename
-			output_path = os.path.join(output_dir, filename)
+			# # Construct the output file path by joining the output directory and the filename
+			# output_path = os.path.join(output_dir, filename)
 
-			# Save the transformed image
-			transformed_image_pil.save(output_path)
+			# # Save the transformed image
+			# transformed_image_pil.save(output_path)
 
 		except:
 			print("removed")

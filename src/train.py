@@ -19,11 +19,10 @@ from dataset import Pets
 import utils
 
 
-NUM_CATEGORIES = 2
 VALIDATION_ITERATION = 20
-NUM_ITERATIONS = 100
+NUM_ITERATIONS = 200
 LEARNING_RATE = 1e-5
-BATCH_SIZE = 10
+BATCH_SIZE = 100
 TRAIN_SPLIT = 0.8
 VAL_SPLIT = 0.1
 TEST_SPLIT = 0.1
@@ -221,12 +220,15 @@ def train(device: str = "cpu") -> None:
     classifier.eval()
     acc = 0
     all = 0
-    for i, (test_imgs, test_target) in enumerate(test_dataloader):
-        test_out = classifier(test_imgs)
-        test_out = torch.argmax(test_out, 1)
-        acc += 1 - (test_out-test_target).count_nonzero()/len(test_target)
-        print(acc/(i+1))
-        all = i+1
+    with torch.no_grad():
+        for i, (test_imgs, test_target) in enumerate(test_dataloader):
+            test_imgs = test_imgs.to(device)
+            test_target = test_target.to(device)
+            test_out = classifier(test_imgs)
+            test_out = torch.argmax(test_out, 1)
+            acc += 1 - (test_out-test_target).count_nonzero()/len(test_target)
+            print(acc/(i+1))
+            all = i+1
     acc = acc/all
     print("FINAL: ",acc)
 
@@ -289,5 +291,5 @@ if __name__ == "__main__":
     #                     action="store_const", const="cuda")
     # args = parser.parse_args()
     # train(args.device)
-    train("cpu")
+    train("cuda")
     
