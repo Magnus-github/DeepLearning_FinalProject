@@ -44,9 +44,12 @@ class Classifier(nn.Module):
 
         self.head = nn.Linear(nn.Flatten(-3, -1)(test_out).size()[1], out_classes)
 
+        count=0
         for child in self.features.children():
-            for param in child.parameters():
-                param.requires_grad = False
+            count+=1
+            if count > 10:
+                for param in child.parameters():
+                    param.requires_grad = False
         
 
     def forward(self, inp: torch.Tensor) -> torch.Tensor:
@@ -90,7 +93,11 @@ class Classifier(nn.Module):
          transforms.ConvertImageDtype(torch.float),
          transforms.Resize((224, 224), antialias=True),
          transforms.RandomHorizontalFlip(p=0.5),
+        #  transforms.ColorJitter(brightness=0.5, contrast=0.2, hue=0.3),
          transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
       ])
       transformed = transform(image)
       return transformed
+
+# if __name__ == "__main__":
+#     Classifier()

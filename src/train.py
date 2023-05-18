@@ -20,9 +20,9 @@ import utils
 
 
 VALIDATION_ITERATION = 20
-NUM_ITERATIONS = 200
+NUM_ITERATIONS = 1500
 LEARNING_RATE = 1e-5
-BATCH_SIZE = 100
+BATCH_SIZE = 70
 TRAIN_SPLIT = 0.8
 VAL_SPLIT = 0.1
 TEST_SPLIT = 0.1
@@ -104,7 +104,7 @@ def train(device: str = "cpu") -> None:
     # run_name = wandb.config.run_name = "det_{}".format(time_string)
 
     # init optimizer
-    optimizer = torch.optim.Adam(classifier.parameters(), lr=LEARNING_RATE, weight_decay=0.01)
+    optimizer = torch.optim.Adam(classifier.parameters(), lr=LEARNING_RATE, weight_decay=0.1)
 
     # load test images
     # these will be evaluated in regular intervals
