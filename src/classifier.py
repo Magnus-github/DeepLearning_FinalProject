@@ -12,6 +12,7 @@ from PIL import Image
 from torchvision import models, transforms
 from torchvision.models import MobileNet_V2_Weights
 
+import random
 
 
 class Classifier(nn.Module):
@@ -91,12 +92,33 @@ class Classifier(nn.Module):
       def crop_image(image):
           """Crop the images so only a specific region of interest is shown to my PyTorch model"""
 
-          # rand = np.random.randint()   £££££££££££ MAKE RANDOM
-          splitxL = 0.1
-          splitxR = 0.51
+          cut = 0.1
+          splitxL = cut * random.random()
+          splitxR = (1-cut) + cut * random.random()
 
-          splityD = 0.5
-          splityU = 0.51
+          splityD = cut * random.random()
+          splityU = (1-cut) + cut * random.random()
+
+          #for i in range(2):
+
+
+          image = image[:, int(image.shape[1] * splityD):int(image.shape[1] * splityU),
+                  int(image.shape[2] * splitxL):int(image.shape[2] * splitxR)]
+
+          return image
+
+
+      def HorizontalFlip(image):
+          """Crop the images so only a specific region of interest is shown to my PyTorch model"""
+
+          #WORK IN PROGRESS
+          r = random.randint(0,1)
+          if r == 0:
+              torch.flip(image,dims=(0,))
+          else:
+              pass
+
+
 
           image = image[:, int(image.shape[1] * splityD):int(image.shape[1] * splityU),
                   int(image.shape[2] * splitxL):int(image.shape[2] * splitxR)]
@@ -106,7 +128,7 @@ class Classifier(nn.Module):
       transform = transforms.Compose([
          transforms.PILToTensor(),
          transforms.ConvertImageDtype(torch.float),
-         transforms.Lambda(crop_image),
+         transforms.Lambda(crop_image),                        # own LAMBDA
          transforms.Resize((224, 224), antialias=True),
          transforms.RandomHorizontalFlip(p=0.5),
         #  transforms.ColorJitter(brightness=0.5, contrast=0.2, hue=0.3),
@@ -137,9 +159,7 @@ class Classifier(nn.Module):
       transform = transforms.Compose([
          transforms.PILToTensor(),
          transforms.ConvertImageDtype(torch.float),
-         #transforms.RandomCrop(size=())
          transforms.Resize((224, 224), antialias=True),
-         transforms.RandomHorizontalFlip(p=0.5),
         #  transforms.ColorJitter(brightness=0.5, contrast=0.2, hue=0.3),
          transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
       ])
