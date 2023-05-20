@@ -40,18 +40,17 @@ class Classifier(nn.Module):
         print("CLASSIFICATION MODE: ", self.classification_mode)
         if self.classification_mode == "binary":
             out_classes = 2
-        else:
+        elif self.classification_mode == "multi_class":
             out_classes = 37
 
         self.head = nn.Linear(nn.Flatten(-3, -1)(test_out).size()[1], out_classes)
 
-        # 1280x15x20 -> 5x15x20, where each element 5 channel tuple corresponds to
-        #   (rel_x_offset, rel_y_offset, rel_x_width, rel_y_height, confidence
-        # Where rel_x_offset, rel_y_offset is relative offset from cell_center
-        # Where rel_x_width, rel_y_width is relative to image size
-        # Where confidence is predicted IOU * probability of object center in this cell
-        # self.out_cells_x = test_out.shape[1]  # 20 #40
-        # self.out_cells_y = test_out.shape[2]  # 15 #23
+        count=0
+        for child in self.features.children():
+            count+=1
+            if count > 10:
+                for param in child.parameters():
+                    param.requires_grad = False
         
 
     def forward(self, inp: torch.Tensor) -> torch.Tensor:
@@ -67,10 +66,9 @@ class Classifier(nn.Module):
         """
         features = self.features(inp)
         features_flat = nn.Flatten(-3,-1)(features)
-        print(features_flat.size())
         out = self.head(features_flat)  # out size: n_batch x 2
 
-        out = torch.nn.functional.softmax(out)
+        # out = torch.nn.functional.softmax(out)
 
         return out
 

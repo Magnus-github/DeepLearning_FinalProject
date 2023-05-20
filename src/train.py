@@ -19,19 +19,13 @@ from dataset import Pets
 import utils
 
 
-NUM_CATEGORIES = 2
-VALIDATION_ITERATION = 100
-NUM_ITERATIONS = 5
+VALIDATION_ITERATION = 20
+NUM_ITERATIONS = 1500
 LEARNING_RATE = 1e-5
-WEIGHT_POS = 1
-WEIGHT_NEG = 1
-WEIGHT_REG = 1
-BATCH_SIZE = 10
+BATCH_SIZE = 70
 TRAIN_SPLIT = 0.8
 VAL_SPLIT = 0.1
 TEST_SPLIT = 0.1
-
-#tmp
 
 
 def compute_loss(
@@ -40,16 +34,14 @@ def compute_loss(
     """Compute loss between predicted tensor and target tensor.
 
     Args:
-        prediction_batch: Batched predictions. Shape (N,C,H,W).
-        target_batch: Batched targets. shape (N,C,H,W).
+        prediction_batch: Batched predictions. Shape (N,k).
+        target_batch: Batched targets. shape (N,k).
 
     Returns:
         cross-entropy loss
     """
-    # positive / negative indices
-    # (this could be passed from input_transform to avoid recomputation)
     
-    loss= torch.nn.functional.binary_cross_entropy(prediction_batch,target_batch.type(torch.float))
+    loss = torch.nn.functional.cross_entropy(prediction_batch,target_batch.type(torch.float))
     return loss
 
 
@@ -57,16 +49,13 @@ def train(device: str = "cpu") -> None:
     """Train the network.
 
     Args:
-        device: The device to train on.
+        device: The device to train on ('cpu' or 'cuda').
     """
 
-    global TRAIN_SPLIT
-    global VAL_SPLIT
-    global TEST_SPLIT
     # wandb.init(project="Object_detection_wAugmentation-1")
 
     # Init model
-    classifier = Classifier().to(device)
+    classifier = Classifier(classification_mode="multi_class").to(device)
 
     # wandb.watch(classifier)
     #print(os.listdir(os.curdir))
@@ -129,7 +118,7 @@ def train(device: str = "cpu") -> None:
     # run_name = wandb.config.run_name = "det_{}".format(time_string)
 
     # init optimizer
-    optimizer = torch.optim.Adam(classifier.parameters(), lr=LEARNING_RATE)
+    optimizer = torch.optim.Adam(classifier.parameters(), lr=LEARNING_RATE, weight_decay=0.1)
 
     # load test images
     # these will be evaluated in regular intervals
@@ -183,17 +172,15 @@ def train(device: str = "cpu") -> None:
             
             img_batch = img_batch.to(device)
             target_batch = target_batch.to(device)
+            target_onehot = nn.functional.one_hot(target_batch, 37)
+            
 
-            # run network
+            # run network (forward pass)
             out = classifier(img_batch)
-            # print(target_batch)
-            # print(nn.functional.one_hot(target_batch))
-            # print(out)
-            # print(torch.argmax(out, 1))
 
-            loss = compute_loss(out, nn.functional.one_hot(target_batch))
+            loss = compute_loss(out, target_onehot)
 
-            # # optimize
+            # optimize
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -247,12 +234,15 @@ def train(device: str = "cpu") -> None:
     classifier.eval()
     acc = 0
     all = 0
-    for i, (test_imgs, test_target) in enumerate(test_dataloader):
-        test_out = classifier(test_imgs)
-        test_out = torch.argmax(test_out, 1)
-        acc += 1 - (test_out-test_target).count_nonzero()/len(test_target)
-        print(acc/(i+1))
-        all = i+1
+    with torch.no_grad():
+        for i, (test_imgs, test_target) in enumerate(test_dataloader):
+            test_imgs = test_imgs.to(device)
+            test_target = test_target.to(device)
+            test_out = classifier(test_imgs)
+            test_out = torch.argmax(test_out, 1)
+            acc += 1 - (test_out-test_target).count_nonzero()/len(test_target)
+            print(acc/(i+1))
+            all = i+1
     acc = acc/all
     print("FINAL: ",acc)
 
@@ -279,30 +269,30 @@ def validate(
 #         device: The device to run validation on.
 #     """
     classifier.eval()
-#     coco_pred = copy.deepcopy(val_dataloader.dataset.coco)
-#     coco_pred.dataset["annotations"] = []
-#     with torch.no_grad():
-    count = total_loss = 0
-#         image_id = ann_id = 0
-    for val_img_batch, val_target_batch in val_dataloader:
-        val_img_batch = val_img_batch.to(device)
-        val_target_batch = val_target_batch.to(device)
-        val_out = classifier(val_img_batch)
-        loss= compute_loss(val_out, val_target_batch)
-        total_loss +=loss
+    
+    with torch.no_grad():
+        count = total_loss = 0
+        
+        for val_img_batch, val_target_batch in val_dataloader:
+            val_img_batch = val_img_batch.to(device)
+            val_target_batch = val_target_batch.to(device)
+            val_target_onehot = nn.functional.one_hot(val_target_batch)
+            val_out = classifier(val_img_batch)
+            loss = compute_loss(val_out, val_target_onehot)
+            total_loss +=loss
 
-        count += len(val_img_batch) / BATCH_SIZE
-#         wandb.log(
-#             {
-#                 "total val loss": (loss / count)
-#             },
-#             step=current_iteration,
-#         )
-        print(
-            "Validation: {}, validation loss: {}".format(
-                current_iteration, loss / count
-            ),
-        )
+            count += len(val_img_batch) / BATCH_SIZE
+    #         wandb.log(
+    #             {
+    #                 "total val loss": (loss / count)
+    #             },
+    #             step=current_iteration,
+    #         )
+    print(
+        "Validation: {}, validation loss: {}".format(
+            current_iteration, loss / count
+        ),
+    )
     classifier.train()
 
 
@@ -315,5 +305,5 @@ if __name__ == "__main__":
     #                     action="store_const", const="cuda")
     # args = parser.parse_args()
     # train(args.device)
-    train("cpu")
+    train("cuda")
     
