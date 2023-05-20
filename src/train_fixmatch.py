@@ -150,6 +150,7 @@ def train(device: str = "cpu") -> None:
                 target_onehot = nn.functional.one_hot(target_batch, 2)
             elif CLASSIFICATION_MODE == "multi_class":    
                 target_onehot = nn.functional.one_hot(target_batch, 37)
+                target_unlb_onehot=nn.functional.one_hot(target_unlb, 37)
             
 
             # run network (forward pass)
@@ -164,11 +165,14 @@ def train(device: str = "cpu") -> None:
             
 
             # create a weakly and a strongly augmented version of this image
-            img_batch_unlb_wA = classifier.weak_FM_transform(img_batch_unlb)
-            img_batch_unlb_sA = classifier.strong_FM_transform(img_batch_unlb)
+            img_batch_unlb_wA = classifier.weak_FM_transform(imgs_unlb)
+            img_batch_unlb_sA = classifier.strong_FM_transform(imgs_unlb_A)
 
             out_weak = classifier(img_batch_unlb_wA)
+            out_unlb = classifier(imgs_unlb)
+            q_b= torch.nn.functional.softmax(out_weak,1)
 
+            l_u= compute_loss(out_weak, target_unlb_onehot)
 
 
             # optimize
@@ -337,5 +341,5 @@ if __name__ == "__main__":
     #                     action="store_const", const="cuda")
     # args = parser.parse_args()
     # train(args.device)
-    train("cuda")
+    train("cpu")
     
