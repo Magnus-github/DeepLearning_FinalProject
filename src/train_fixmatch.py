@@ -178,15 +178,17 @@ def train(device: str = "cpu") -> None:
             img_batch_unlb_sA = classifier.strong_FM_transform(imgs_unlb_A)
 
             #forward pass with unlabeled, weakly augmented and strongly augmented
-            out_unlb = classifier(imgs_unlb)
-            out_weak = classifier(img_batch_unlb_wA)
-            out_unlb_A=classifier(imgs_unlb_A)
+            out_unlb = classifier(imgs_unlb)               #forward-pass of unlabeled-images
+            out_weak = classifier(img_batch_unlb_wA)       #forward-pass of weakly augmented unlabeled images
+            out_unlb_A=classifier(imgs_unlb_A)             #forward-pass of strongly augmented unlabeled images
 
-
-            pseudo_labels = torch.argmax(torch.softmax(out_weak,1),1)
-            thresh_mask = torch.max(torch.softmax(out_unlb,1),1)[0] >= PSEUDO_THRESH
-            loss_u = torch.mean(nn.CrossEntropyLoss(out_unlb_A, pseudo_labels)*thresh_mask)
             
+            pseudo_labels = torch.argmax(torch.softmax(out_weak,1),1)  #pseudo-labels from the weak augmentations
+            thresh_mask = torch.max(torch.softmax(out_unlb,1),1)[0] >= PSEUDO_THRESH  #Picking pseudo-labels above the treshhold
+
+            #loss between strongly augmented outputs and the pseudo-labels above the threshold
+            loss_u = torch.mean(nn.CrossEntropyLoss(out_unlb_A, pseudo_labels)*thresh_mask.float()) 
+
             # optimize
             optimizer.zero_grad()
             loss.backward()
