@@ -13,6 +13,7 @@ from torchvision import models, transforms
 from torchvision.models import MobileNet_V2_Weights
 
 
+
 class Classifier(nn.Module):
     """Baseline module for object classification."""
 
@@ -87,10 +88,25 @@ class Classifier(nn.Module):
                 The composition of transforms to be applied to the image.
         """
 
+      def crop_image(image):
+          """Crop the images so only a specific region of interest is shown to my PyTorch model"""
+
+          # rand = np.random.randint()   £££££££££££ MAKE RANDOM
+          splitxL = 0.1
+          splitxR = 0.51
+
+          splityD = 0.5
+          splityU = 0.51
+
+          image = image[:, int(image.shape[1] * splityD):int(image.shape[1] * splityU),
+                  int(image.shape[2] * splitxL):int(image.shape[2] * splitxR)]
+
+          return image
 
       transform = transforms.Compose([
          transforms.PILToTensor(),
          transforms.ConvertImageDtype(torch.float),
+         transforms.Lambda(crop_image),
          transforms.Resize((224, 224), antialias=True),
          transforms.RandomHorizontalFlip(p=0.5),
         #  transforms.ColorJitter(brightness=0.5, contrast=0.2, hue=0.3),
@@ -98,6 +114,39 @@ class Classifier(nn.Module):
       ])
       transformed = transform(image)
       return transformed
+
+
+
+
+    def test_transform(self, image: Image) -> Tuple[torch.Tensor]:
+      """Prepare image and targets on loading.
+
+        This function is called before an image is added to a batch.
+        Must be passed as transforms function to dataset.
+
+        Args:
+            image:
+                The image loaded from the dataset.
+
+        Returns:
+            transform:
+                The composition of transforms to be applied to the image.
+        """
+
+
+      transform = transforms.Compose([
+         transforms.PILToTensor(),
+         transforms.ConvertImageDtype(torch.float),
+         #transforms.RandomCrop(size=())
+         transforms.Resize((224, 224), antialias=True),
+         transforms.RandomHorizontalFlip(p=0.5),
+        #  transforms.ColorJitter(brightness=0.5, contrast=0.2, hue=0.3),
+         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+      ])
+      transformed = transform(image)
+      return transformed
+
+
 
 # if __name__ == "__main__":
 #     Classifier()

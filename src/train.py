@@ -20,9 +20,9 @@ import utils
 
 
 VALIDATION_ITERATION = 20
-NUM_ITERATIONS = 1500
+NUM_ITERATIONS = 30
 LEARNING_RATE = 1e-5
-BATCH_SIZE = 70
+BATCH_SIZE = 95
 TRAIN_SPLIT = 0.8
 VAL_SPLIT = 0.1
 TEST_SPLIT = 0.1
@@ -64,20 +64,26 @@ def train(device: str = "cpu") -> None:
         root_dir = "./data/images/"
     else:
         root_dir = "../data/images/"
-    dataset = Pets(
+    datasettrain = Pets(
         root_dir=root_dir,
         transform=classifier.input_transform,
         classification_mode="multi_class"
     )
+    datasettest = Pets(
+        root_dir=root_dir,
+        transform=classifier.test_transform,
+        classification_mode="multi_class"
+    )
 
     try:
-        train_data, val_data, test_data = random_split(dataset, [TRAIN_SPLIT, VAL_SPLIT,TEST_SPLIT])
+        train_data, val_data, test_data = random_split(datasettrain, [TRAIN_SPLIT, VAL_SPLIT,TEST_SPLIT])
     except:
-        train_split = int(TRAIN_SPLIT * len(dataset))
-        val_split = int(VAL_SPLIT * len(dataset))
-        test_split = int(len(dataset)- train_split-val_split)
+        train_split = int(TRAIN_SPLIT * len(datasettrain))
+        val_split = int(VAL_SPLIT * len(datasettrain))
+        test_split = int(len(datasettrain)- train_split-val_split)
 
-        train_data, val_data, test_data = random_split(dataset, [train_split, val_split, test_split])
+        train_data, _, _ = random_split(datasettrain, [train_split, val_split, test_split])
+        _,val_data, test_data= random_split(datasettest, [train_split, val_split, test_split])
 
     train_dataloader = torch.utils.data.DataLoader(
         train_data, batch_size=BATCH_SIZE, shuffle=True
