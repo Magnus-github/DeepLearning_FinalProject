@@ -48,7 +48,7 @@ class Classifier(nn.Module):
         for child in self.features.children():
             count+=1
             if count < 19:
-                for param in child.parameters():
+                for param in list(child.parameters())[:]:
                     param.requires_grad = False
         
 
@@ -114,7 +114,7 @@ class Classifier(nn.Module):
             transform:
                 The composition of transforms to be applied to the image.
         """
-
+    
 
       transform = transforms.Compose([
          transforms.PILToTensor(),
@@ -124,6 +124,36 @@ class Classifier(nn.Module):
       ])
       transformed = transform(image)
       return transformed
+    
+
+    def weak_FM_transform(self, img: Image) -> torch.Tensor:
+        """
+        Perform a weak augmentation on a batch of images. Note, that the images are
+        already transforemd to tensors and the correct size!
+        """
+        transform = transforms.Compose([
+         transforms.PILToTensor(),
+         transforms.ConvertImageDtype(torch.float),
+         transforms.Resize((224, 224), antialias=True),
+         transforms.RandomHorizontalFlip(p=0.5),
+         transforms.RandomAffine(degrees=0, translate=(0.125,0.125)),
+         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+      ])    
+        return transform(img)
+    
+
+    def strong_FM_transform(self, img: Image) -> torch.Tensor:
+        """
+        Perform a strong augmentation (RandAugment) on a batch of images. Note, that the images are already transforemd to tensors and the correct size!
+        """
+        transform = transforms.Compose([
+         transforms.PILToTensor(),
+         transforms.ConvertImageDtype(torch.float),
+         transforms.Resize((224, 224), antialias=True),
+         transforms.RandAugment(),
+         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        ])
+        return transform(img)
 
 # if __name__ == "__main__":
 #     Classifier()

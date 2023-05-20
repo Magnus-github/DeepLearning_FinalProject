@@ -27,12 +27,14 @@ VALIDATE = True
 NUM_ITERATIONS = 2000
 LEARNING_RATE = 1e-5
 LEARNING_RATE_MAX = 1e-2
-BATCH_SIZE = 10
+BATCH_SIZE_LB = 30
+BATCH_SIZE_UNLB = 50
 TRAIN_SPLIT = 0.8
 VAL_SPLIT = 0.1
 TEST_SPLIT = 0.1
 LAMBDA = 0.05
 LAYERS_TO_UNFREEZE = 5
+PSEUDO_THRESH = 0.9
 
 def compute_loss(
     prediction_batch: torch.Tensor, target_batch: torch.Tensor
@@ -76,51 +78,35 @@ def train(device: str = "cpu") -> None:
     else:
         root_dir = "../data/images/"
 
-    dataset = Pets(
+    dataset_a = Pets(
         root_dir=root_dir,
-        transform=classifier.input_transform,
-        classification_mode=CLASSIFICATION_MODE
-    )
-
-    val_dataset = Pets(
-        root_dir=root_dir,
-        transform=classifier.test_transform,
-        classification_mode=CLASSIFICATION_MODE
-    )
-
-
-    try:
-        train_data, _, _ = random_split(dataset, [TRAIN_SPLIT, VAL_SPLIT,TEST_SPLIT],torch.Generator().manual_seed(69))
-        _, val_data, test_data = random_split(val_dataset, [TRAIN_SPLIT, VAL_SPLIT,TEST_SPLIT],torch.Generator().manual_seed(69))
-    except:
-        train_split = int(TRAIN_SPLIT * len(dataset))
-        val_split = int(VAL_SPLIT * len(dataset))
-        test_split = int(len(dataset)- train_split-val_split)
-
-        train_data, _, _ = random_split(dataset, [train_split, val_split, test_split],torch.Generator().manual_seed(69))
-        _, val_data, test_data = random_split(val_dataset, [train_split, val_split, test_split],torch.Generator().manual_seed(69))
-
-    train_dataloader = torch.utils.data.DataLoader(
-        train_data, batch_size=BATCH_SIZE, shuffle=True
-    )
-
-
-    val_dataloader = torch.utils.data.DataLoader(
-        val_data, batch_size=BATCH_SIZE , shuffle=False
-    )
-
-    test_dataloader = torch.utils.data.DataLoader(
-         test_data, batch_size=100, shuffle=False
-    )
-
-    test = Pets(
-        root_dir=root_dir,
+        transform=classifier.weak_FM_transform,
         classification_mode=classifier.classification_mode
     )
 
-    test_lb, test_unlb = random_split(test, [0.2,0.8])
-    print(test_lb)
-    exit()
+    dataset_A = Pets(
+        root_dir=root_dir,
+        transform=classifier.strong_FM_transform,
+        classification_mode=classifier.classification_mode
+    )
+
+    data_lb, data_unlb_a = random_split(dataset_a, [0.2, 0.8], torch.Generator().manual_seed(42))
+    _, data_unlb_A = random_split(dataset_A, [0.2, 0.8], torch.Generator.manual_seed(42))
+
+    # data_unlb.labels = {"unlabelled": 37}
+    # data_unlb.unlabelled = True
+
+    train_dataloader = torch.utils.data.DataLoader(
+         data_lb, batch_size=BATCH_SIZE_LB, shuffle=True
+    )
+
+    unlb_a_dataloader = torch._utils.data.Dataloader(
+        data_unlb_a, BATCH_SIZE_UNLB, shuffle=True
+    )
+
+    unlb_A_dataloader = torch._utils.data.Dataloader(
+        data_unlb_A, BATCH_SIZE_UNLB, shuffle=True
+    )
 
     # training params
     # wandb.config.max_iterations = NUM_ITERATIONS
@@ -155,20 +141,9 @@ def train(device: str = "cpu") -> None:
     current_iteration = 1
     val_iteration = 1
     while (current_iteration <= NUM_ITERATIONS) and running:
-        for img_batch, target_batch in train_dataloader:
-            
-            idxs = torch.where(target_batch==4)[0].tolist()
-            op_idxs = torch.where(target_batch!=4)[0].tolist()
+        for (img_batch, target_batch), (imgs_unlb, target_unlb), (imgs_unlb_A, target_unlb_A) in zip(train_dataloader, unlb_a_dataloader, unlb_A_dataloader):
 
-            op_imgs = img_batch[op_idxs,:,:,:]
-            op_target = target_batch[op_idxs]
-
-            imgs = img_batch[idxs,:,:,:]
-            print(imgs.size())
-            print(op_imgs.size())
-            print(idxs)
-            print(op_target)
-            exit()
+            # compute loss for labelled samples
             img_batch = img_batch.to(device)
             target_batch = target_batch.to(device)
             if CLASSIFICATION_MODE == "binary":
@@ -182,7 +157,19 @@ def train(device: str = "cpu") -> None:
             if CLASSIFICATION_MODE == "binary":
                 out = torch.nn.functional.softmax(out, 1)
 
-            loss = compute_loss(out, target_onehot)
+            loss_lb = compute_loss(out, target_onehot)
+
+            # compute prediction of weakly aug. unlabelled imgs
+            target_unlb = 37*torch.ones(target_unlb.size())
+            
+
+            # create a weakly and a strongly augmented version of this image
+            img_batch_unlb_wA = classifier.weak_FM_transform(img_batch_unlb)
+            img_batch_unlb_sA = classifier.strong_FM_transform(img_batch_unlb)
+
+            out_weak = classifier(img_batch_unlb_wA)
+
+
 
             # optimize
             optimizer.zero_grad()

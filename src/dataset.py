@@ -26,6 +26,7 @@ class Pets(Dataset):
             raise ValueError("The classification mode should be either 'binary' or 'multi_class'!")
 
         self.labels = self.__getlabels__()
+        self.unlabelled = False
         
     def __getlabels__(self):
         files = [file for file in os.listdir(self.root_dir)]
@@ -47,14 +48,20 @@ class Pets(Dataset):
     def __getitem__(self, idx):
         file_name = self.__getfiles__()[idx]
         img = self.transform(Image.open(file_name))
-        label = ('_').join(file_name.split('/')[-1].split('.')[0].split('_')[:-1])
-        if label[0].isupper():
-            label += "_cat"
+        if self.unlabelled:
+            label = "unlabelled"
         else:
-            label += "_dog"
-        if self.classification_mode == "binary":
-            label = label[-3:]
+            label = ('_').join(file_name.split('/')[-1].split('.')[0].split('_')[:-1])
+            if label[0].isupper():
+                label += "_cat"
+            else:
+                label += "_dog"
+            if self.classification_mode == "binary":
+                label = label[-3:]
         return img, self.labels[label]
     
     def __len__(self):
         return len(self.__getfiles__())
+    
+if __name__ == "__main__":
+    print(Pets().labels)
