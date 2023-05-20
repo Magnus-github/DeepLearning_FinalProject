@@ -5,7 +5,7 @@ import os
 from datetime import datetime
 from typing import Tuple
 from torchvision import transforms
-
+import numpy as np
 
 import matplotlib.pyplot as plt
 import torch
@@ -18,14 +18,16 @@ from classifier import Classifier
 from dataset import Pets
 import utils
 
-
+CLASSIFICATION_MODE = "multi_class"
 VALIDATION_ITERATION = 20
-NUM_ITERATIONS = 1500
+NUM_ITERATIONS = 1000
 LEARNING_RATE = 1e-5
+LEARNING_RATE_MAX = 1e-2
 BATCH_SIZE = 70
 TRAIN_SPLIT = 0.8
 VAL_SPLIT = 0.1
 TEST_SPLIT = 0.1
+LAMBDA = 0.05
 
 
 def compute_loss(
@@ -44,6 +46,10 @@ def compute_loss(
     loss = torch.nn.functional.cross_entropy(prediction_batch,target_batch.type(torch.float))
     return loss
 
+def compute_accuracy(prediction: torch.Tensor, ground_truth: torch.Tensor):
+    acc = 1 - (prediction-ground_truth).count_nonzero()/len(ground_truth)
+    return acc
+
 
 def train(device: str = "cpu") -> None:
     """Train the network.
@@ -55,29 +61,38 @@ def train(device: str = "cpu") -> None:
     # wandb.init(project="Object_detection_wAugmentation-1")
 
     # Init model
-    classifier = Classifier(classification_mode="multi_class").to(device)
+    classifier = Classifier(classification_mode=CLASSIFICATION_MODE).to(device)
 
     # wandb.watch(classifier)
-    #print(os.listdir(os.curdir))
     root_dir = "."
     if "data" in os.listdir(os.curdir):
         root_dir = "./data/images/"
     else:
         root_dir = "../data/images/"
+
     dataset = Pets(
         root_dir=root_dir,
         transform=classifier.input_transform,
-        classification_mode="multi_class"
+        classification_mode=CLASSIFICATION_MODE
     )
 
+    val_dataset = Pets(
+        root_dir=root_dir,
+        transform=classifier.test_transform,
+        classification_mode=CLASSIFICATION_MODE
+    )
+
+
     try:
-        train_data, val_data, test_data = random_split(dataset, [TRAIN_SPLIT, VAL_SPLIT,TEST_SPLIT])
+        train_data, _, _ = random_split(dataset, [TRAIN_SPLIT, VAL_SPLIT,TEST_SPLIT],torch.Generator().manual_seed(69))
+        _, val_data, test_data = random_split(val_dataset, [TRAIN_SPLIT, VAL_SPLIT,TEST_SPLIT],torch.Generator().manual_seed(69))
     except:
         train_split = int(TRAIN_SPLIT * len(dataset))
         val_split = int(VAL_SPLIT * len(dataset))
         test_split = int(len(dataset)- train_split-val_split)
 
-        train_data, val_data, test_data = random_split(dataset, [train_split, val_split, test_split])
+        train_data, _, _ = random_split(dataset, [train_split, val_split, test_split],torch.Generator().manual_seed(69))
+        _, val_data, test_data = random_split(val_dataset, [train_split, val_split, test_split],torch.Generator().manual_seed(69))
 
     train_dataloader = torch.utils.data.DataLoader(
         train_data, batch_size=BATCH_SIZE, shuffle=True
@@ -100,61 +115,31 @@ def train(device: str = "cpu") -> None:
     # wandb.config.weight_reg = WEIGHT_REG
 
     # run name (to easily identify model later)
-    time_string = datetime.now().strftime("%Y-%m-%d_%H-%M-%S-%f")
+    # time_string = datetime.now().strftime("%Y-%m-%d_%H-%M-%S-%f")
     # run_name = wandb.config.run_name = "det_{}".format(time_string)
 
     # init optimizer
-    optimizer = torch.optim.Adam(classifier.parameters(), lr=LEARNING_RATE, weight_decay=0.1)
+    optimizer = torch.optim.Adam(classifier.parameters(), lr=LEARNING_RATE, weight_decay=LAMBDA)
+    # optimizer = torch.optim.SGD(classifier.parameters(), lr=LEARNING_RATE, momentum=0.9, weight_decay=LAMBDA)
+    # scheduler = torch.optim.lr_scheduler.CyclicLR(optimizer, base_lr=LEARNING_RATE, max_lr=LEARNING_RATE_MAX, mode='triangular2')
 
-    # load test images
-    # these will be evaluated in regular intervals
+
     classifier.eval()
 
-    # image, target = dataset.__getitem__(0)
-    # images = torch.zeros((1,image.size[0], image.size[1], image.size[2]))
-    # out, features = detector(images)
-    # print(features.size)
-    # print(out.size)
-    #exit()
-    test_images = []
-    show_test_images = False
-    directory = "./data/test_images"
-    # if not os.path.exists(directory):
-    #     os.makedirs(directory)
-    # for file_name in sorted(os.listdir(directory)):
-    #     if file_name.endswith(".jpeg"):
-    #         file_path = os.path.join(directory, file_name)
-    #         test_image = Image.open(file_path)
-    #         torch_image, _ = detector.input_transform(test_image, [])
-    #         test_images.append(torch_image)
-
-    if test_images:
-        test_images = torch.stack(test_images)
-        test_images = test_images.to(device)
-        show_test_images = True
-
-    # import matplotlib.pyplot as plt
-    # import matplotlib.patches as patches
-    # dataset.transforms = None
-    # for i in range(0, 700,1):
-    #     test = dataset
-    #     image, target = dataset.__getitem__(i)
-    #     fig, ax = plt.subplots()
-    #     print(target)
-    #     x,y,w,h = target[0]["bbox"]
-    #     rect = patches.Rectangle((x,y), w,h, linewidth=1, edgecolor="r", facecolor="none")
-    #     ax.imshow(image)
-    #     ax.add_patch(rect)
-    #     plt.show()
-    # exit("forced exit")
+    t = []
+    train_losses = []
+    val_losses = []
+    train_accs = []
+    val_accs = []
+    unfreeze = 1
 
 
     print("Training started...")
 
     current_iteration = 1
+    val_iteration = 1
     while current_iteration <= NUM_ITERATIONS:
         for img_batch, target_batch in train_dataloader:
-
             
             img_batch = img_batch.to(device)
             target_batch = target_batch.to(device)
@@ -170,6 +155,8 @@ def train(device: str = "cpu") -> None:
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+            # scheduler.step()
+            
             # wandb.log(
             #     {
             #         "total loss": loss.item(),
@@ -185,31 +172,42 @@ def train(device: str = "cpu") -> None:
                     current_iteration, loss.item()),
             )
 
-            # Validate every N iterations
-            # if current_iteration % VALIDATION_ITERATION == 0:
-            #     validate(classifier, val_dataloader, current_iteration, device)
+            # Validate and plot every N iterations
+            if current_iteration % VALIDATION_ITERATION == 0:
+                val_loss, val_acc = validate(classifier, val_dataloader, device)
+                loss = loss.to("cpu").detach().numpy()
+                val_loss = val_loss.to("cpu").detach().numpy()
+                val_acc = val_acc.to("cpu").detach().numpy()
+                # with torch.no_grad():
+                #     count = train_acc = 0
+                #     for i, (train_imgs, train_target) in enumerate(train_dataloader):
+                #         train_imgs = train_imgs.to(device)
+                #         train_target = train_target.to(device)
+                #         train_out = classifier(train_imgs)
+                #         train_out = torch.argmax(train_out, 1)
+                #         train_acc += compute_accuracy(train_out, train_target)
+                #         count += len(train_imgs) / BATCH_SIZE
+                # train_acc = train_acc/count
+                # train_acc = train_acc.to("cpu").detach().numpy()
+                    
+                # train_accs.append(train_acc)
+                val_accs.append(val_acc)
+                train_losses.append(loss)
+                val_losses.append(val_loss)
 
-            # # generate visualization every N iterations
-            # if current_iteration % 250 == 0 and show_test_images:
-            #     classifier.eval()
-            #     with torch.no_grad():
-            #         out = classifier(test_images).cpu()
+                if len(val_accs) > 1:
+                    if abs(val_acc-val_accs[-2]) < 0.01:
+                        print("Unfreezing last {} layers.".format(unfreeze))
+                        count=0
+                        for child in classifier.features.children():
+                            count+=1
+                            if count > 19-unfreeze:
+                                for param in child.parameters():
+                                    param.requires_grad = True            
+                        unfreeze+=1
 
-            #         for i, test_image in enumerate(test_images):
-            #             figure, ax = plt.subplots(1)
-            #             plt.imshow(test_image.cpu().permute(1, 2, 0))
-            #             plt.imshow(
-            #                 out[i, 4, :, :],
-            #                 interpolation="nearest",
-            #                 extent=(0, 640, 480, 0),
-            #                 alpha=0.7,
-            #             )
-
-            #             wandb.log(
-            #                 {"test_img_{i}".format(i=i): figure}, step=current_iteration
-            #             )
-            #             plt.close()
-            #     classifier.train()
+                # update_plot(trainloss_plot, valloss_plot, loss, val_loss, val_iteration)
+                val_iteration += 1
 
             current_iteration += 1
             if current_iteration > NUM_ITERATIONS:
@@ -226,7 +224,7 @@ def train(device: str = "cpu") -> None:
             test_target = test_target.to(device)
             test_out = classifier(test_imgs)
             test_out = torch.argmax(test_out, 1)
-            acc += 1 - (test_out-test_target).count_nonzero()/len(test_target)
+            acc += compute_accuracy(test_out, test_target)
             print(acc/(i+1))
             all = i+1
     acc = acc/all
@@ -238,12 +236,32 @@ def train(device: str = "cpu") -> None:
     # wandb.save(model_path)
 
     # print("Model weights saved at {}".format(model_path))
+    t = range(0,NUM_ITERATIONS+1,int((NUM_ITERATIONS+1)/(len(train_losses)-1)))
+    t = np.linspace(0, NUM_ITERATIONS, num=len(train_losses))
+    plt.figure()
+    plt.plot(t,train_losses,label="Training loss")
+    plt.plot(t,val_losses, label="Validation loss")
+    plt.ylabel("Loss")
+    plt.xlabel("t")
+    plt.title("Loss function")
+    plt.legend()
+    # plt.show()
+    plt.savefig("./data/plots/Losses.pdf", format="pdf", bbox_inches="tight")
+
+    plt.figure()
+    # plt.plot(t,train_accs,label="Training accuracy")
+    plt.plot(t,val_accs, label="Validation accuracy")
+    plt.ylabel("Loss")
+    plt.xlabel("t")
+    plt.title("Loss function")
+    plt.legend()
+    # plt.show()
+    plt.savefig("./data/plots/Accuracies.pdf", format="pdf", bbox_inches="tight")
 
 
 def validate(
     classifier: Classifier,
     val_dataloader: torch.utils.data.DataLoader,
-    current_iteration: int,
     device: str,
 ) -> None:
 #     """Compute validation metrics and log to wandb.
@@ -251,22 +269,21 @@ def validate(
 #     Args:
 #         detector: The detector module to validate.
 #         val_dataloader: The dataloader for the validation dataset.
-#         current_iteration: The current training iteration. Used for logging.
 #         device: The device to run validation on.
 #     """
     classifier.eval()
     
     with torch.no_grad():
-        count = total_loss = 0
-        
+        count = total_loss = acc = 0
         for val_img_batch, val_target_batch in val_dataloader:
             val_img_batch = val_img_batch.to(device)
             val_target_batch = val_target_batch.to(device)
-            val_target_onehot = nn.functional.one_hot(val_target_batch)
+            val_target_onehot = nn.functional.one_hot(val_target_batch, 37)
             val_out = classifier(val_img_batch)
             loss = compute_loss(val_out, val_target_onehot)
+            val_out = torch.argmax(val_out, 1)
+            acc += compute_accuracy(val_out, val_target_batch)
             total_loss +=loss
-
             count += len(val_img_batch) / BATCH_SIZE
     #         wandb.log(
     #             {
@@ -274,12 +291,15 @@ def validate(
     #             },
     #             step=current_iteration,
     #         )
-    print(
-        "Validation: {}, validation loss: {}".format(
-            current_iteration, loss / count
-        ),
-    )
+    # print(
+    #     "Validation: {}, validation loss: {}".format(
+    #         current_iteration, loss / count
+    #     ),
+    # )
+
     classifier.train()
+
+    return total_loss/count, acc/count
 
 
 if __name__ == "__main__":

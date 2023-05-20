@@ -47,7 +47,7 @@ class Classifier(nn.Module):
         count=0
         for child in self.features.children():
             count+=1
-            if count > 10:
+            if count < 19:
                 for param in child.parameters():
                     param.requires_grad = False
         
@@ -93,7 +93,33 @@ class Classifier(nn.Module):
          transforms.ConvertImageDtype(torch.float),
          transforms.Resize((224, 224), antialias=True),
          transforms.RandomHorizontalFlip(p=0.5),
+         transforms.RandomRotation(20),
         #  transforms.ColorJitter(brightness=0.5, contrast=0.2, hue=0.3),
+         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+      ])
+      transformed = transform(image)
+      return transformed
+    
+    def test_transform(self, image: Image) -> Tuple[torch.Tensor]:
+      """Prepare image and targets on loading.
+
+        This function is called before an image is added to a batch.
+        Must be passed as transforms function to dataset.
+
+        Args:
+            image:
+                The image loaded from the dataset.
+
+        Returns:
+            transform:
+                The composition of transforms to be applied to the image.
+        """
+
+
+      transform = transforms.Compose([
+         transforms.PILToTensor(),
+         transforms.ConvertImageDtype(torch.float),
+         transforms.Resize((224, 224), antialias=True),
          transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
       ])
       transformed = transform(image)
