@@ -143,17 +143,26 @@ def train(device: str = "cpu") -> None:
     while (current_iteration <= NUM_ITERATIONS) and running:
         for (img_batch, target_batch), (imgs_unlb, target_unlb), (imgs_unlb_A, target_unlb_A) in zip(train_dataloader, unlb_a_dataloader, unlb_A_dataloader):
 
-            # compute loss for labelled samples
+            # load labeled, unlabeled-weakly augmented, unlabeled-strongly augmented
             img_batch = img_batch.to(device)
             target_batch = target_batch.to(device)
+
+            imgs_unlb = imgs_unlb.to(device)
+            target_unlb = target_unlb.to(device)
+
+            imgs_unlb_A = imgs_unlb_A.to(device)
+            target_unlb_A = target_unlb_A.to(device)
+
             if CLASSIFICATION_MODE == "binary":
                 target_onehot = nn.functional.one_hot(target_batch, 2)
+                target_unlb_onehot = nn.functional.one_hot(target_batch, 2)
+                target_unlb_A_onehot = nn.functional.one_hot(target_batch, 2)
             elif CLASSIFICATION_MODE == "multi_class":    
                 target_onehot = nn.functional.one_hot(target_batch, 37)
-                target_unlb_onehot=nn.functional.one_hot(target_unlb, 37)
-            
+                target_unlb_onehot = nn.functional.one_hot(target_batch, 37)
+                target_unlb_A_onehot = nn.functional.one_hot(target_batch, 37)
 
-            # run network (forward pass)
+            # Compute loss for labeled data
             out = classifier(img_batch)
             if CLASSIFICATION_MODE == "binary":
                 out = torch.nn.functional.softmax(out, 1)
@@ -168,13 +177,16 @@ def train(device: str = "cpu") -> None:
             img_batch_unlb_wA = classifier.weak_FM_transform(imgs_unlb)
             img_batch_unlb_sA = classifier.strong_FM_transform(imgs_unlb_A)
 
-            out_weak = classifier(img_batch_unlb_wA)
+            #forward pass with unlabeled, weakly augmented and strongly augmented
             out_unlb = classifier(imgs_unlb)
-            q_b= torch.nn.functional.softmax(out_weak,1)
+            out_weak = classifier(img_batch_unlb_wA)
+            out_unlb_A=classifier(imgs_unlb_A)
 
-            l_u= compute_loss(out_weak, target_unlb_onehot)
 
-
+            pseudo_labels = torch.argmax(torch.softmax(out_weak,1),1)
+            thresh_mask = torch.max(torch.softmax(out_unlb,1),1)[0] >= PSEUDO_THRESH
+            loss_u = torch.mean(nn.CrossEntropyLoss(out_unlb_A, pseudo_labels)*thresh_mask)
+            
             # optimize
             optimizer.zero_grad()
             loss.backward()
