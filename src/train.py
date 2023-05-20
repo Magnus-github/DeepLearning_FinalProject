@@ -75,21 +75,34 @@ def train(device: str = "cpu") -> None:
         root_dir = "./data/images/"
     else:
         root_dir = "../data/images/"
-    dataset = Pets(
+    dataset_train = Pets(
         root_dir=root_dir,
-        transform=classifier.input_transform,
+        transform=classifier.input_transform_training,
         classification_mode="binary"
+    )
+    dataset_test = Pets(
+	    root_dir=root_dir,
+	    transform=classifier.input_transform_testing,
+	    classification_mode="binary"
     )
 
     try:
-        train_data, val_data, test_data = random_split(dataset, [TRAIN_SPLIT, VAL_SPLIT,TEST_SPLIT])
+        train_data, _, _ = random_split(dataset_train, [TRAIN_SPLIT, VAL_SPLIT,TEST_SPLIT],
+                                                       generator=torch.Generator().manual_seed(42))
+        _, val_data, test_data = random_split(dataset_test, [TRAIN_SPLIT, VAL_SPLIT, TEST_SPLIT],
+                                                       generator=torch.Generator().manual_seed(42))
     except:
-        TRAIN_SPLIT = int(TRAIN_SPLIT * len(dataset))
-        VAL_SPLIT = int(VAL_SPLIT * len(dataset))
-        TEST_SPLIT = int(len(dataset)- TRAIN_SPLIT-VAL_SPLIT)
+        TRAIN_SPLIT = int(TRAIN_SPLIT * len(dataset_train))
+        VAL_SPLIT = int(VAL_SPLIT * len(dataset_test))
+        TEST_SPLIT = int(len(dataset_test)- TRAIN_SPLIT-VAL_SPLIT)
+
+        train_data, _, _ = random_split(dataset_train, [TRAIN_SPLIT, VAL_SPLIT, TEST_SPLIT],
+                                        generator=torch.Generator().manual_seed(42))
+        _, val_data, test_data = random_split(dataset_test, [TRAIN_SPLIT, VAL_SPLIT, TEST_SPLIT],
+                                              generator=torch.Generator().manual_seed(42))
 
 
-        train_data, val_data, test_data = random_split(dataset, [TRAIN_SPLIT, VAL_SPLIT, TEST_SPLIT])
+
 
     train_dataloader = torch.utils.data.DataLoader(
         train_data, batch_size=BATCH_SIZE, shuffle=True

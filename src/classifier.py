@@ -73,38 +73,70 @@ class Classifier(nn.Module):
         out = torch.nn.functional.softmax(out)
 
         return out
-    
-
-    def input_transform(self, image: Image) -> Tuple[torch.Tensor]:
-      """Prepare image and targets on loading.
-
-        This function is called before an image is added to a batch.
-        Must be passed as transforms function to dataset.
-
-        Args:
-            image:
-                The image loaded from the dataset.
-
-        Returns:
-            transform:
-                The composition of transforms to be applied to the image.
-        """
-
-      def crop_image(image: PIL.Image.Image) -> PIL.Image.Image:
-          """Crop the images so only a specific region of interest is shown to my PyTorch model"""
-          left, top, width, height = 20, 80, 40, 60
-
-          return transforms.functional.crop(image, left=left, top=top, width=width, height=height)
-
-      transform = transforms.Compose([
-	     transforms.Lambda(crop_image),
-         transforms.PILToTensor(),
-         transforms.ConvertImageDtype(torch.float),
-         transforms.Resize((224, 224), antialias=True),
-         #transforms.RandomHorizontalFlip(p=0.5),
-         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-      ])
-      transformed = transform(image)
 
 
-      return transformed
+
+    def input_transform_training(self, image: Image) -> Tuple[torch.Tensor]:
+        def crop_image(image):
+            """Crop the images so only a specific region of interest is shown to my PyTorch model"""
+            splitxL = 0.5
+            splitxR = 0.51
+
+            splityD = 0.5
+            splityU = 0.51
+
+            image = image[:, int(image.shape[1] * splityD):int(image.shape[1] * splityU),
+                    int(image.shape[2] * splitxL):int(image.shape[2] * splitxR)]
+
+            return image
+
+
+
+
+        transform = transforms.Compose([
+             transforms.PILToTensor(),
+             transforms.ConvertImageDtype(torch.float),
+             transforms.Lambda(crop_image),
+             transforms.Resize((224, 224), antialias=True),
+             #transforms.RandomHorizontalFlip(p=0.5),
+             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+          ])
+        transformed = transform(image)
+
+
+        return transformed
+
+
+
+
+
+
+    def input_transform_testing(self, image: Image) -> Tuple[torch.Tensor]:
+        def crop_image(image):
+            """Crop the images so only a specific region of interest is shown to my PyTorch model"""
+            splitxL = 0.5
+            splitxR = 0.51
+
+            splityD = 0.5
+            splityU = 0.51
+
+            image = image[:, int(image.shape[1] * splityD):int(image.shape[1] * splityU),
+                    int(image.shape[2] * splitxL):int(image.shape[2] * splitxR)]
+
+            return image
+
+
+
+
+        transform = transforms.Compose([
+             transforms.PILToTensor(),
+             transforms.ConvertImageDtype(torch.float),
+             #transforms.Lambda(crop_image),
+             transforms.Resize((224, 224), antialias=True),
+             #transforms.RandomHorizontalFlip(p=0.5),
+             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+          ])
+        transformed = transform(image)
+
+
+        return transformed
