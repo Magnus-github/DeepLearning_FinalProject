@@ -12,6 +12,9 @@ from PIL import Image
 from torchvision import models, transforms
 from torchvision.models import MobileNet_V2_Weights
 
+import random
+import matplotlib.pyplot as plt
+
 
 class Classifier(nn.Module):
     """Baseline module for object classification."""
@@ -99,3 +102,62 @@ class Classifier(nn.Module):
       ])
       transformed = transform(image)
       return transformed
+    
+
+    def rand_augment(self, image:Image) -> torch.Tensor:
+        """
+        Implement the randaugment algorithm.
+        """
+        N = 8 # number of augmentations to be applied (total numberof augmentations is K=14)
+        M = 8 # intensity of augmentations (intensitiy 0 <= M <= 10) -> linear scaling
+
+        # RandomHorizontalFlip: IMPLEMENTED (not to be used in randaugment!!!!)
+        # RandomRotation: MEDIUM-HARD
+        # GussianBlur: EASY (copy from image analysis)
+        # RandomPosterize: IDK
+        # Identity: EASY
+        # RandomAdjustSharpness: IDK (rather MEDIUM-HARD); sharpness val: 0->blurred, 1->original, n>1->sharpened by factor n
+        # TranslateX: EASY-MEDIUM (with torch: transforms.RandomAffine(degrees=0, translate(X,0))) (analog for Y)
+        # RandomAutoContrast: IDK, just use torch.transforms.RandomAutoContrast
+        # RandomSolarize: EASY (all pixels above a thresh should be inverted)
+        # ShearX/Y: same as translate
+        # RandomEqualize: MEDIUM (change color histogram)
+        # Color: no specification in paper -> use colorJitter from torch
+        # Brightness: same as color
+
+        transform_pool = [transforms.RandomHorizontalFlip(p=M/10), transforms.RandomRotation((M*90)/10), transforms.GaussianBlur((5,5), sigma=(M*5)/10),
+                          transforms.RandomSolarize((M*0.75)/10), transforms.Compose([transforms.ConvertImageDtype(torch.uint8),transforms.RandomPosterize((8*M)/10), transforms.ConvertImageDtype(torch.float)])]
+
+        # transform_pool.append(transforms.Lambda())
+        # ...
+
+        transforms_to_use = random.choices(transform_pool, k=N)
+        print(transforms_to_use)
+
+
+        transform_list = [transforms.PILToTensor(), transforms.ConvertImageDtype(torch.float)]
+        
+        for tf in transforms_to_use:
+            transform_list.append(tf)
+
+        transform_list.append(transforms.Resize((224,224), antialias=True))
+        # transform_list.append(transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]))
+        
+
+        transform = transforms.Compose(transform_list)
+
+        return transform(image)
+    
+
+if __name__ == "__main__":
+    with Image.open("./data/images/american_bulldog_87.jpg") as im:
+        clf = Classifier()
+        tf_im = clf.rand_augment(im)
+        # im.show()
+        # print(tf(im))
+        # print(tf_im)
+        tf = transforms.Compose([transforms.PILToTensor(), transforms.RandomEqualize(p=1)])
+        print(tf(im))
+        im.show()
+        plt.imshow(tf_im.permute(1, 2, 0))
+        plt.show()
