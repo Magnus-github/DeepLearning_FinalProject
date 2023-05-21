@@ -11,9 +11,12 @@ import torch.nn as nn
 from PIL import Image
 from torchvision import models, transforms
 from torchvision.models import MobileNet_V2_Weights
+import augmentations
+import os
 
 import random
 import matplotlib.pyplot as plt
+
 
 
 class Classifier(nn.Module):
@@ -150,14 +153,18 @@ class Classifier(nn.Module):
     
 
 if __name__ == "__main__":
+    print(os.listdir(os.curdir))
     with Image.open("./data/images/american_bulldog_87.jpg") as im:
         clf = Classifier()
-        tf_im = clf.rand_augment(im)
+        #tf_im = clf.rand_augment(im)
         # im.show()
         # print(tf(im))
         # print(tf_im)
-        tf = transforms.Compose([transforms.PILToTensor(), transforms.RandomEqualize(p=1)])
-        print(tf(im))
+        #tf = transforms.Compose([transforms.PILToTensor(), transforms.RandomEqualize(p=1)])
+        #print(tf(im))
+        im=np.array(im)
+        print(im.shape)
+        im = augmentations.gaussianblur(im, 2)
         im.show()
-        plt.imshow(tf_im.permute(1, 2, 0))
+        #plt.imshow(tf_im.permute(1, 2, 0))
         plt.show()
