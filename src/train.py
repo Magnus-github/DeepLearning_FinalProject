@@ -58,6 +58,9 @@ def compute_accuracy(prediction: torch.Tensor, ground_truth: torch.Tensor):
 
 
 def train(device: str = "cpu") -> None:
+
+    global TRAIN_SPLIT
+    global VAL_SPLIT
     """Train the network.
 
     Args:
@@ -81,7 +84,7 @@ def train(device: str = "cpu") -> None:
         transform=classifier.input_transform,
         classification_mode=CLASSIFICATION_MODE
     )
-
+    
     val_dataset = Pets(
         root_dir=root_dir,
         transform=classifier.test_transform,
