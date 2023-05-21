@@ -45,18 +45,17 @@ class Classifier(nn.Module):
         print("CLASSIFICATION MODE: ", self.classification_mode)
         if self.classification_mode == "binary":
             out_classes = 2
-        else:
+        elif self.classification_mode == "multi_class":
             out_classes = 37
 
         self.head = nn.Linear(nn.Flatten(-3, -1)(test_out).size()[1], out_classes)
 
-        # 1280x15x20 -> 5x15x20, where each element 5 channel tuple corresponds to
-        #   (rel_x_offset, rel_y_offset, rel_x_width, rel_y_height, confidence
-        # Where rel_x_offset, rel_y_offset is relative offset from cell_center
-        # Where rel_x_width, rel_y_width is relative to image size
-        # Where confidence is predicted IOU * probability of object center in this cell
-        # self.out_cells_x = test_out.shape[1]  # 20 #40
-        # self.out_cells_y = test_out.shape[2]  # 15 #23
+        count=0
+        for child in self.features.children():
+            count+=1
+            if count < 19:
+                for param in list(child.parameters())[:]:
+                    param.requires_grad = False
         
 
     def forward(self, inp: torch.Tensor) -> torch.Tensor:
@@ -72,10 +71,9 @@ class Classifier(nn.Module):
         """
         features = self.features(inp)
         features_flat = nn.Flatten(-3,-1)(features)
-        print(features_flat.size())
         out = self.head(features_flat)  # out size: n_batch x 2
 
-        out = torch.nn.functional.softmax(out)
+        # out = torch.nn.functional.softmax(out)
 
         return out
     
@@ -94,13 +92,14 @@ class Classifier(nn.Module):
             transform:
                 The composition of transforms to be applied to the image.
         """
-      
-        #hi mom
 
       transform = transforms.Compose([
          transforms.PILToTensor(),
          transforms.ConvertImageDtype(torch.float),
          transforms.Resize((224, 224), antialias=True),
+         transforms.RandomHorizontalFlip(p=0.5),
+         transforms.RandomRotation(20),
+        #  transforms.ColorJitter(brightness=0.5, contrast=0.2, hue=0.3),
          transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
       ])
       transformed = transform(image)
@@ -149,12 +148,67 @@ class Classifier(nn.Module):
         return transform(image)
     
 
-if __name__ == "__main__":
-    print(os.listdir(os.curdir))
-    with Image.open("./data/images/beagle_19.jpg") as im:
-        clf = Classifier()
-        im.show()
-        im = clf.rand_augment(im)
-        itf = transforms.ToPILImage()
-        im = itf(im)
-        im.show()
+    def test_transform(self, image: Image) -> Tuple[torch.Tensor]:
+      """Prepare image and targets on loading.
+
+        This function is called before an image is added to a batch.
+        Must be passed as transforms function to dataset.
+
+        Args:
+            image:
+                The image loaded from the dataset.
+
+        Returns:
+            transform:
+                The composition of transforms to be applied to the image.
+        """
+    
+
+      transform = transforms.Compose([
+         transforms.PILToTensor(),
+         transforms.ConvertImageDtype(torch.float),
+         transforms.Resize((224, 224), antialias=True),
+         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+      ])
+      transformed = transform(image)
+      return transformed
+    
+
+    def weak_FM_transform(self, img: Image) -> torch.Tensor:
+        """
+        Perform a weak augmentation on a batch of images. Note, that the images are
+        already transforemd to tensors and the correct size!
+        """
+        transform = transforms.Compose([
+         transforms.PILToTensor(),
+         transforms.ConvertImageDtype(torch.float),
+         transforms.Resize((224, 224), antialias=True),
+         transforms.RandomHorizontalFlip(p=0.5),
+         transforms.RandomAffine(degrees=0, translate=(0.125,0.125)),
+         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+      ])    
+        return transform(img)
+    
+
+    def strong_FM_transform(self, img: Image) -> torch.Tensor:
+        """
+        Perform a strong augmentation (RandAugment) on a batch of images. Note, that the images are already transforemd to tensors and the correct size!
+        """
+        transform = transforms.Compose([
+         transforms.PILToTensor(),
+         transforms.ConvertImageDtype(torch.float),
+         transforms.Resize((224, 224), antialias=True),
+         transforms.RandAugment(),
+         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        ])
+        return transform(img)
+
+# if __name__ == "__main__":
+#     print(os.listdir(os.curdir))
+#     with Image.open("./data/images/beagle_19.jpg") as im:
+#         clf = Classifier()
+#         im.show()
+#         im = clf.rand_augment(im)
+#         itf = transforms.ToPILImage()
+#         im = itf(im)
+#         im.show()
