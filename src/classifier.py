@@ -56,6 +56,14 @@ class Classifier(nn.Module):
             if count < 19:
                 for param in list(child.parameters())[:]:
                     param.requires_grad = False
+
+        self.initialize_weights()
+
+    def initialize_weights(self):
+        # Apply custom weight initialization to the additional linear layer
+        nn.init.xavier_uniform_(self.head.weight)
+        if self.head.bias is not None:
+            nn.init.zeros_(self.head.bias)
         
 
     def forward(self, inp: torch.Tensor) -> torch.Tensor:
@@ -141,6 +149,7 @@ class Classifier(nn.Module):
         transform_list.extend(transforms_to_use)
 
         transform_list.extend([transforms.ConvertImageDtype(torch.float),
+                               transforms.Lambda(A.Cutout(n_holes=1, length=16)),
                                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
         
 

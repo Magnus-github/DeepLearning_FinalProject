@@ -22,21 +22,21 @@ from dataset import Pets
 import utils
 
 CLASSIFICATION_MODE = "multi_class"
-VALIDATION_ITERATION = 20
+VALIDATION_ITERATION = 5
 VALIDATE = True
 NUM_ITERATIONS = 100
 LEARNING_RATE = 0.00003
 LEARNING_RATE_MAX = 1e-2
-BATCH_SIZE_LB = 16
-BATCH_SIZE_UNLB = 56
+BATCH_SIZE_LB = 10
+BATCH_SIZE_UNLB = 10
 BATCH_SIZE_TEST = 100
 TRAIN_SPLIT = 0.8
 VAL_SPLIT = 0.1
 TEST_SPLIT = 0.1
-LAMBDA = 0.0005
+LAMBDA = 0.05
 LAMBDA_FM = 1
 LAYERS_TO_UNFREEZE = 5
-PSEUDO_THRESH = 0.3
+PSEUDO_THRESH = 0.9
 
 def compute_loss(
     prediction_batch: torch.Tensor, target_batch: torch.Tensor
@@ -98,9 +98,9 @@ def train(device: str = "cpu") -> None:
         classification_mode=classifier.classification_mode
     )
 
-    data_lb, data_unlb_a, _, _ = random_split(dataset_a, [0.16, 0.64, 0.1, 0.1], torch.Generator().manual_seed(42))
+    data_lb, data_unlb_a, _, _ = random_split(dataset_a, [0.1, 0.7, 0.1, 0.1], torch.Generator().manual_seed(42))
     _, data_unlb_A, _, _ = random_split(dataset_A, [0.1, 0.7, 0.1, 0.1], torch.Generator().manual_seed(42))
-    _,_,data_val, data_test = random_split(dataset_test, [0.16, 0.64, 0.1, 0.1], torch.Generator().manual_seed(42))
+    _,_,data_val, data_test = random_split(dataset_test, [0.1, 0.7, 0.1, 0.1], torch.Generator().manual_seed(42))
 
     # data_unlb.labels = {"unlabelled": 37}
     # data_unlb.unlabelled = True
@@ -118,11 +118,11 @@ def train(device: str = "cpu") -> None:
     )
 
     unlb_a_dataloader = torch.utils.data.DataLoader(
-        data_unlb_a, BATCH_SIZE_UNLB, shuffle=True
+        data_unlb_a, BATCH_SIZE_UNLB, shuffle=False
     )
 
     unlb_A_dataloader = torch.utils.data.DataLoader(
-        data_unlb_A, BATCH_SIZE_UNLB, shuffle=True
+        data_unlb_A, BATCH_SIZE_UNLB, shuffle=False
     )
 
     # training params
@@ -302,7 +302,6 @@ def train(device: str = "cpu") -> None:
     plt.xlabel("t")
     plt.title("Loss function")
     plt.legend()
-    # plt.show()
     plt.savefig("./outputs/plots/Losses.pdf", format="pdf", bbox_inches="tight")
 
     plt.figure()
@@ -312,7 +311,6 @@ def train(device: str = "cpu") -> None:
     plt.xlabel("t")
     plt.title("Loss function")
     plt.legend()
-    # plt.show()
     plt.savefig("./outputs/plots/Accuracies.pdf", format="pdf", bbox_inches="tight")
 
 
