@@ -58,9 +58,6 @@ def compute_accuracy(prediction: torch.Tensor, ground_truth: torch.Tensor):
 
 
 def train(device: str = "cpu") -> None:
-
-    global TRAIN_SPLIT
-    global VAL_SPLIT
     """Train the network.
 
     Args:
@@ -292,7 +289,7 @@ def train(device: str = "cpu") -> None:
     plt.plot(t,val_accs, label="Validation accuracy")
     plt.ylabel("Loss")
     plt.xlabel("t")
-    plt.title("Loss function")
+    plt.title("Accuracy")
     plt.legend()
     # plt.show()
     plt.savefig("./data/plots/Accuracies.pdf", format="pdf", bbox_inches="tight")

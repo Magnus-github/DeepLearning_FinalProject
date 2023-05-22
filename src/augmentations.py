@@ -35,6 +35,7 @@ class CustomGaussianBlurr(object):
 
         return pixels
     
+
 class CustomRandomSolarize(object):
     def __init__(self, threshold, p=0.5) -> None:
         self.threshold = threshold
@@ -61,7 +62,80 @@ class CustomIdentity(object):
         return image
 
 
+class Custom_equalization():
+    def __init__(self):
+        pass
 
+    def __call__(self,image):
+        red, green, blue = image[0,:,:], image[1,:,:], image[2,:,:]
+
+        #Apply histogram equalization to each channel
+        red_eq = self.equalize(red)
+        green_eq = self.equalize(green)
+        blue_eq = self.equalize(blue)
+        equalized_tensor = torch.stack((red_eq, green_eq, blue_eq))
+
+
+        return equalized_tensor
+
+    def equalize(self,channel):
+        #flat=nn.Flatten(-1,1)(channel)
+        flat = channel.view(-1)  #reshape into a column vector
+
+        histogram = torch.histc(flat, bins= 256, min=0 , max=1)
+
+        cdf=torch.cumsum(histogram, 0)
+        # cdf_normalized = (cdf - cdf.min()) / (cdf.max() - cdf.min())
+        #print(np.array(flat.unsqueeze(1).long()).shape)
+
+        # Map pixel intensities to equalized values using the CDF
+        equalized_channel = cdf[flat.long()]
+
+        # Reshape into same size as the colour channel
+        equalized_channel = equalized_channel.view(channel.size())
+
+        return equalized_channel
+    
+
+class Cutout(object):
+    """Randomly mask out one or more patches from an image.
+
+    Args:
+        n_holes (int): Number of patches to cut out of each image.
+        length (int): The length (in pixels) of each square patch.
+    """
+    def __init__(self, n_holes, length):
+        self.n_holes = n_holes
+        self.length = length
+
+    def __call__(self, img):
+        """
+        Args:
+            img (Tensor): Tensor image of size (C, H, W).
+        Returns:
+            Tensor: Image with n_holes of dimension length x length cut out of it.
+        """
+        h = img.size(1)
+        w = img.size(2)
+
+        mask = np.ones((h, w), np.float32)
+
+        for n in range(self.n_holes):
+            y = np.random.randint(h)
+            x = np.random.randint(w)
+
+            y1 = np.clip(y - self.length // 2, 0, h)
+            y2 = np.clip(y + self.length // 2, 0, h)
+            x1 = np.clip(x - self.length // 2, 0, w)
+            x2 = np.clip(x + self.length // 2, 0, w)
+
+            mask[y1: y2, x1: x2] = 0.
+
+        mask = torch.from_numpy(mask)
+        mask = mask.expand_as(img)
+        img = img * mask
+
+        return img
 
         
 
@@ -74,9 +148,9 @@ if __name__ == "__main__":
         print(im.size())
         
         # im = gaussianblur(im, 5)
-        gausTF = transforms.Lambda(CustomGaussianBlurr(5))
-        test_tf = transforms.ColorJitter(hue=[0 ])
-        im= test_tf(im)
+        ctestTf = transforms.Lambda(Cutout(50,20))
+        # test_tf = transforms.ColorJitter(hue=[0 ])
+        im= ctestTf(im)
     #     im.transpose(1,2,0)
         # im = Image.fromarray(im, 'RGB')
         im = itf(im)

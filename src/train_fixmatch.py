@@ -24,17 +24,19 @@ import utils
 CLASSIFICATION_MODE = "multi_class"
 VALIDATION_ITERATION = 20
 VALIDATE = True
-NUM_ITERATIONS = 2000
-LEARNING_RATE = 1e-5
+NUM_ITERATIONS = 100
+LEARNING_RATE = 0.00003
 LEARNING_RATE_MAX = 1e-2
-BATCH_SIZE_LB = 30
-BATCH_SIZE_UNLB = 50
+BATCH_SIZE_LB = 16
+BATCH_SIZE_UNLB = 56
+BATCH_SIZE_TEST = 100
 TRAIN_SPLIT = 0.8
 VAL_SPLIT = 0.1
 TEST_SPLIT = 0.1
-LAMBDA = 0.05
+LAMBDA = 0.0005
+LAMBDA_FM = 1
 LAYERS_TO_UNFREEZE = 5
-PSEUDO_THRESH = 0.9
+PSEUDO_THRESH = 0.3
 
 def compute_loss(
     prediction_batch: torch.Tensor, target_batch: torch.Tensor
@@ -86,12 +88,19 @@ def train(device: str = "cpu") -> None:
 
     dataset_A = Pets(
         root_dir=root_dir,
-        transform=classifier.strong_FM_transform,
+        transform=classifier.rand_augment,
         classification_mode=classifier.classification_mode
     )
 
-    data_lb, data_unlb_a = random_split(dataset_a, [0.2, 0.8], torch.Generator().manual_seed(42))
-    _, data_unlb_A = random_split(dataset_A, [0.2, 0.8], torch.Generator.manual_seed(42))
+    dataset_test = Pets(
+        root_dir=root_dir,
+        transform=classifier.test_transform,
+        classification_mode=classifier.classification_mode
+    )
+
+    data_lb, data_unlb_a, _, _ = random_split(dataset_a, [0.16, 0.64, 0.1, 0.1], torch.Generator().manual_seed(42))
+    _, data_unlb_A, _, _ = random_split(dataset_A, [0.1, 0.7, 0.1, 0.1], torch.Generator().manual_seed(42))
+    _,_,data_val, data_test = random_split(dataset_test, [0.16, 0.64, 0.1, 0.1], torch.Generator().manual_seed(42))
 
     # data_unlb.labels = {"unlabelled": 37}
     # data_unlb.unlabelled = True
@@ -100,11 +109,19 @@ def train(device: str = "cpu") -> None:
          data_lb, batch_size=BATCH_SIZE_LB, shuffle=True
     )
 
-    unlb_a_dataloader = torch._utils.data.Dataloader(
+    val_dataloader = torch.utils.data.DataLoader(
+        data_val, batch_size=BATCH_SIZE_LB, shuffle=False
+    )
+
+    test_dataloader = torch.utils.data.DataLoader(
+        data_test, batch_size=BATCH_SIZE_TEST, shuffle=False
+    )
+
+    unlb_a_dataloader = torch.utils.data.DataLoader(
         data_unlb_a, BATCH_SIZE_UNLB, shuffle=True
     )
 
-    unlb_A_dataloader = torch._utils.data.Dataloader(
+    unlb_A_dataloader = torch.utils.data.DataLoader(
         data_unlb_A, BATCH_SIZE_UNLB, shuffle=True
     )
 
@@ -155,12 +172,8 @@ def train(device: str = "cpu") -> None:
 
             if CLASSIFICATION_MODE == "binary":
                 target_onehot = nn.functional.one_hot(target_batch, 2)
-                target_unlb_onehot = nn.functional.one_hot(target_batch, 2)
-                target_unlb_A_onehot = nn.functional.one_hot(target_batch, 2)
             elif CLASSIFICATION_MODE == "multi_class":    
                 target_onehot = nn.functional.one_hot(target_batch, 37)
-                target_unlb_onehot = nn.functional.one_hot(target_batch, 37)
-                target_unlb_A_onehot = nn.functional.one_hot(target_batch, 37)
 
             # Compute loss for labeled data
             out = classifier(img_batch)
@@ -169,25 +182,28 @@ def train(device: str = "cpu") -> None:
 
             loss_lb = compute_loss(out, target_onehot)
 
-            # compute prediction of weakly aug. unlabelled imgs
-            target_unlb = 37*torch.ones(target_unlb.size())
-            
-
-            # create a weakly and a strongly augmented version of this image
-            img_batch_unlb_wA = classifier.weak_FM_transform(imgs_unlb)
-            img_batch_unlb_sA = classifier.strong_FM_transform(imgs_unlb_A)
-
             #forward pass with unlabeled, weakly augmented and strongly augmented
-            out_unlb = classifier(imgs_unlb)               #forward-pass of unlabeled-images
-            out_weak = classifier(img_batch_unlb_wA)       #forward-pass of weakly augmented unlabeled images
-            out_unlb_A=classifier(imgs_unlb_A)             #forward-pass of strongly augmented unlabeled images
+            out_unlb = classifier(imgs_unlb)               #forward-pass of weakly augmented unlabeled images
+            
 
             
-            pseudo_labels = torch.argmax(torch.softmax(out_weak,1),1)  #pseudo-labels from the weak augmentations
-            thresh_mask = torch.max(torch.softmax(out_unlb,1),1)[0] >= PSEUDO_THRESH  #Picking pseudo-labels above the treshhold
+            pseudo_labels = torch.argmax(torch.nn.functional.softmax(out_unlb,1),1)  #pseudo-labels from the weak augmentations
+            thresh_mask = torch.max(torch.nn.functional.softmax(out_unlb,1),1)[0] >= PSEUDO_THRESH  #Picking pseudo-labels above the treshhold)
+            one = [a for a in thresh_mask if a]
+            # thresh_mask[3] = True
+            imgs_unlb_A = imgs_unlb_A[thresh_mask]
+            out_unlb_A = classifier(imgs_unlb_A)           #forward-pass of strongly augmented unlabeled images
+            p_mask = pseudo_labels[thresh_mask]
+            pseudo_labels_onehot = nn.functional.one_hot(pseudo_labels[thresh_mask], 37)
 
             #loss between strongly augmented outputs and the pseudo-labels above the threshold
-            loss_u = torch.mean(nn.CrossEntropyLoss(out_unlb_A, pseudo_labels)*thresh_mask.float()) 
+            if thresh_mask.any():
+                loss_u = compute_loss(out_unlb_A, pseudo_labels_onehot)
+            else:
+                loss_u = 0
+
+            # Add loss of labelled and unlabelled images
+            loss = loss_lb + LAMBDA_FM * loss_u
 
             # optimize
             optimizer.zero_grad()
@@ -206,8 +222,8 @@ def train(device: str = "cpu") -> None:
             # )
 
             print(
-                "Iteration: {}, loss: {}".format(
-                    current_iteration, loss.item()),
+                "Iteration: {}, loss: {} ({} + {})".format(
+                    current_iteration, loss.item(), loss_lb, loss_u),
             )
 
             # Validate and plot every N iterations
@@ -258,7 +274,7 @@ def train(device: str = "cpu") -> None:
 
     classifier.eval()
     acc = 0
-    all = 0
+    count = 0
     with torch.no_grad():
         for i, (test_imgs, test_target) in enumerate(test_dataloader):
             test_imgs = test_imgs.to(device)
@@ -267,8 +283,8 @@ def train(device: str = "cpu") -> None:
             test_out = torch.argmax(test_out, 1)
             acc += compute_accuracy(test_out, test_target)
             print(acc/(i+1))
-            all = i+1
-    acc = acc/all
+            count += len(test_imgs) / BATCH_SIZE_TEST
+    acc = acc/count
     print("FINAL: ",acc)
 
 
@@ -287,7 +303,7 @@ def train(device: str = "cpu") -> None:
     plt.title("Loss function")
     plt.legend()
     # plt.show()
-    plt.savefig("./data/plots/Losses.pdf", format="pdf", bbox_inches="tight")
+    plt.savefig("./outputs/plots/Losses.pdf", format="pdf", bbox_inches="tight")
 
     plt.figure()
     # plt.plot(t,train_accs,label="Training accuracy")
@@ -297,7 +313,7 @@ def train(device: str = "cpu") -> None:
     plt.title("Loss function")
     plt.legend()
     # plt.show()
-    plt.savefig("./data/plots/Accuracies.pdf", format="pdf", bbox_inches="tight")
+    plt.savefig("./outputs/plots/Accuracies.pdf", format="pdf", bbox_inches="tight")
 
 
 def validate(
@@ -328,7 +344,7 @@ def validate(
             val_out = torch.argmax(val_out, 1)
             acc += compute_accuracy(val_out, val_target_batch)
             total_loss +=loss
-            count += len(val_img_batch) / BATCH_SIZE
+            count += len(val_img_batch) / BATCH_SIZE_LB
     #         wandb.log(
     #             {
     #                 "total val loss": (loss / count)
@@ -355,5 +371,5 @@ if __name__ == "__main__":
     #                     action="store_const", const="cuda")
     # args = parser.parse_args()
     # train(args.device)
-    train("cpu")
+    train("cuda")
     

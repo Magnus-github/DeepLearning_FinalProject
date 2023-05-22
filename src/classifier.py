@@ -99,7 +99,6 @@ class Classifier(nn.Module):
          transforms.Resize((224, 224), antialias=True),
          transforms.RandomHorizontalFlip(p=0.5),
          transforms.RandomRotation(20),
-        #  transforms.ColorJitter(brightness=0.5, contrast=0.2, hue=0.3),
          transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
       ])
       transformed = transform(image)
@@ -132,15 +131,17 @@ class Classifier(nn.Module):
         
 
         transforms_to_use = random.choices(transform_pool, k=N)
-        print(transforms_to_use)
 
 
-        transform_list = [transforms.PILToTensor(), transforms.ConvertImageDtype(torch.float)]
+        transform_list = [transforms.PILToTensor(),
+                          transforms.ConvertImageDtype(torch.float),
+                          transforms.Resize((224,224), antialias=True)
+                          ]
         
         transform_list.extend(transforms_to_use)
 
-        transform_list.append(transforms.Resize((224,224), antialias=True))
-        # transform_list.append(transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]))
+        transform_list.extend([transforms.ConvertImageDtype(torch.float),
+                               transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
         
 
         transform = transforms.Compose(transform_list)
@@ -187,20 +188,6 @@ class Classifier(nn.Module):
          transforms.RandomAffine(degrees=0, translate=(0.125,0.125)),
          transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
       ])    
-        return transform(img)
-    
-
-    def strong_FM_transform(self, img: Image) -> torch.Tensor:
-        """
-        Perform a strong augmentation (RandAugment) on a batch of images. Note, that the images are already transforemd to tensors and the correct size!
-        """
-        transform = transforms.Compose([
-         transforms.PILToTensor(),
-         transforms.ConvertImageDtype(torch.float),
-         transforms.Resize((224, 224), antialias=True),
-         transforms.RandAugment(),
-         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-        ])
         return transform(img)
 
 # if __name__ == "__main__":
