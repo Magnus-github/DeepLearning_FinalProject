@@ -18,18 +18,21 @@ from classifier import Classifier
 from dataset import Pets
 import utils
 
+import sounddevice as sd
+import soundfile as sf
+
 CLASSIFICATION_MODE = "multi_class"
 VALIDATION_ITERATION = 20
 VALIDATE = True
 NUM_ITERATIONS = 3000
-LEARNING_RATE = 1e-6
+LEARNING_RATE = 5e-5
 LEARNING_RATE_MAX = 1e-3
-BATCH_SIZE = 64
+BATCH_SIZE = 256
 TRAIN_SPLIT = 0.8
 VAL_SPLIT = 0.1
 TEST_SPLIT = 0.1
-LAMBDA = 0.05
-LAYERS_TO_UNFREEZE = 5
+LAMBDA = 0.0005
+LAYERS_TO_UNFREEZE = 3
 
 def compute_loss(
     prediction_batch: torch.Tensor, target_batch: torch.Tensor
@@ -122,14 +125,15 @@ def train(device: str = "cpu") -> None:
     # run_name = wandb.config.run_name = "det_{}".format(time_string)
 
     # init optimizer
-    optimizer = torch.optim.Adam(classifier.parameters(), lr=LEARNING_RATE, weight_decay=LAMBDA)
+    # optimizer = torch.optim.Adam(classifier.parameters(), lr=LEARNING_RATE, weight_decay=LAMBDA)
+    optimizer = torch.optim.SGD(classifier.parameters(), lr=LEARNING_RATE_MAX, momentum=0.9, nesterov=True)
     # optimizer = torch.optim.SGD([{'params':list(classifier.parameters())[-1],
     #                               'lr': LEARNING_RATE},
     #                               {'params': list(classifier.parameters())[:-1],
     #                                'lr': LEARNING_RATE_MAX}],
     #                                 lr=LEARNING_RATE, momentum=0.9, weight_decay=LAMBDA)
     # scheduler = torch.optim.lr_scheduler.CyclicLR(optimizer, base_lr=LEARNING_RATE, max_lr=LEARNING_RATE_MAX, mode='triangular2')
-    # scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=1, eta_min=LEARNING_RATE, verbose=False)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=20, T_mult=2, eta_min=LEARNING_RATE, verbose=False)
 
     classifier.eval()
 
@@ -141,8 +145,14 @@ def train(device: str = "cpu") -> None:
     unfreeze = 1
     running = True
 
+    iter_p_epoch = len(train_data)/BATCH_SIZE
 
+    print("Running {} epochs...".format(int(NUM_ITERATIONS/int(iter_p_epoch))))
     print("Training started...")
+
+    waveform, sample_rate = sf.read("./data/Startingtraining.wav", dtype='float32')
+    sd.play(waveform, sample_rate)
+    sd.wait()
 
     current_iteration = 1
     val_iteration = 1
@@ -168,7 +178,7 @@ def train(device: str = "cpu") -> None:
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            # # scheduler.step()
+            scheduler.step()
             # before_lr = optimizer.param_groups[0]["lr"]
             # scheduler.step()
             # after_lr = optimizer.param_groups[0]["lr"]
@@ -214,16 +224,24 @@ def train(device: str = "cpu") -> None:
                     val_losses.append(val_loss)
 
                     if len(val_accs) > 1:
-                        # if abs(val_acc-val_accs[-2]) < 0.005:
-                        #     if unfreeze < LAYERS_TO_UNFREEZE+1:
-                        #         print("Unfreezing last {} layers of the pretrained model.".format(unfreeze))
-                        #         for child in classifier.features.children():                                
-                        #             for param in list(child.parameters())[:-unfreeze]:
-                        #                 param.requires_grad = True
-                        #         unfreeze+=1
+                        print("---------------------------------------------------------------------------")
+                        print("Validation loss: {}; Diff: {}".format(val_loss, val_loss-val_losses[-2]))
+                        print("Validation acc: {}; Diff: {}".format(val_acc, val_acc-val_accs[-2]))
+                        print("Training loss diff to last val step: {}".format(loss-train_losses[-2]))
+
+                        if abs(val_acc-val_accs[-2]) < 0.005:
+                            if unfreeze < LAYERS_TO_UNFREEZE+1:
+                                print("Unfreezing last {} layers of the pretrained model.".format(unfreeze))
+                                for param in list(classifier.features.parameters())[:-unfreeze]:
+                                    param.requires_grad = True
+                                # for child in classifier.features.children():                                
+                                #     for param in list(child.parameters())[:-unfreeze]:
+                                #         param.requires_grad = True
+                                unfreeze+=1
                         if (val_loss-val_losses[-2]) > 0.0001:
-                            print("Stopping training as validation accuracy doesn't increase anymore.")
+                            print("Stopping training as validation loss is increasing.")
                             running = False
+                        print("---------------------------------------------------------------------------")
 
                     # update_plot(trainloss_plot, valloss_plot, loss, val_loss, val_iteration)
                     val_iteration += 1
@@ -232,7 +250,10 @@ def train(device: str = "cpu") -> None:
             if (current_iteration > NUM_ITERATIONS) or not running:
                 running = False
                 break
-
+            
+    waveform, sample_rate = sf.read("./data/Ichhabefertig.wav", dtype='float32')
+    sd.play(waveform, sample_rate)
+    sd.wait()
     print("\nTraining completed (max iterations reached)")
 
     classifier.eval()
