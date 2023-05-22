@@ -22,7 +22,7 @@ import sounddevice as sd
 import soundfile as sf
 
 CLASSIFICATION_MODE = "multi_class"
-VALIDATION_ITERATION = 20
+VALIDATION_ITERATION = 2
 VALIDATE = True
 NUM_ITERATIONS = 3000
 LEARNING_RATE = 5e-5
@@ -53,7 +53,9 @@ def compute_loss(
     return loss
 
 def compute_accuracy(prediction: torch.Tensor, ground_truth: torch.Tensor):
-    acc = 1 - (prediction-ground_truth).count_nonzero()/len(ground_truth)
+    correct = prediction == ground_truth
+    num_correct = torch.sum(correct).item()
+    acc = num_correct/len(ground_truth)
     return acc
 
 
@@ -205,7 +207,7 @@ def train(device: str = "cpu") -> None:
                     val_loss, val_acc = validate(classifier, val_dataloader, device)
                     loss = loss.to("cpu").detach().numpy()
                     val_loss = val_loss.to("cpu").detach().numpy()
-                    val_acc = val_acc.to("cpu").detach().numpy()
+                    # val_acc = val_acc.to("cpu").detach().numpy()
                     # with torch.no_grad():
                     #     count = train_acc = 0
                     #     for i, (train_imgs, train_target) in enumerate(train_dataloader):
