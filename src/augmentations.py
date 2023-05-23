@@ -100,6 +100,41 @@ class Cutout(object):
         img = img * mask
 
         return img
+    
+    
+class Custom_equalization():
+    def __init__(self):
+        pass
+
+    def __call__(self,image):
+        red, green, blue = image[0,:,:], image[1,:,:], image[2,:,:]
+
+        #Apply histogram equalization to each channel
+        red_eq = self.equalize(red)
+        green_eq = self.equalize(green)
+        blue_eq = self.equalize(blue)
+        equalized_tensor = torch.stack((red_eq, green_eq, blue_eq))
+
+
+        return equalized_tensor
+
+    def equalize(self,channel):
+        #flat=nn.Flatten(-1,1)(channel)
+        flat = channel.view(-1)  #reshape into a column vector
+
+        histogram = torch.histc(flat, bins= 256, min=0 , max=1)
+
+        cdf=torch.cumsum(histogram, 0)
+        #cdf_normalized = (cdf - cdf.min()) / (cdf.max() - cdf.min())
+        #print(np.array(flat.unsqueeze(1).long()).shape)
+
+        # Map pixel intensities to equalized values using the CDF
+        equalized_channel = cdf[flat.long()]
+
+        # Reshape into same size as the colour channel
+        equalized_channel = equalized_channel.view(channel.size())
+
+        return equalized_channel
 
 
 
@@ -107,7 +142,7 @@ class Cutout(object):
         
 
 if __name__ == "__main__":
-    with Image.open("data/images/Abyssinian_27.jpg") as im:
+    with Image.open("data/images/Leonberger_52.jpg") as im:
         im.show()
         tf = transforms.Compose([transforms.PILToTensor(), transforms.ConvertImageDtype(torch.float)])
         itf = transforms.ToPILImage()
@@ -116,8 +151,9 @@ if __name__ == "__main__":
         
         # im = gaussianblur(im, 5)
         gausTF = transforms.Lambda(CustomGaussianBlurr(5))
+        eq = transforms.Lambda(Custom_equalization())
         test_tf = transforms.ColorJitter(hue=[0 ])
-        im= test_tf(im)
+        im= eq(im)
     #     im.transpose(1,2,0)
         # im = Image.fromarray(im, 'RGB')
         im = itf(im)
