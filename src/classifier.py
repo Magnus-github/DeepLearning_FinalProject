@@ -140,7 +140,8 @@ class Classifier(nn.Module):
         transform_list.extend(transforms_to_use)
 
         transform_list.append(transforms.Resize((224,224), antialias=True))
-        # transform_list.append(transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]))
+        transform_list.append(transforms.Lambda(A.Cutout(n_holes=1, length=16)))
+        transform_list.append(transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]))
         
 
         transform = transforms.Compose(transform_list)
