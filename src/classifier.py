@@ -17,6 +17,7 @@ import os
 import random
 import matplotlib.pyplot as plt
 
+from torchvision.models import ResNet18_Weights
 
 
 class Classifier(nn.Module):
@@ -31,9 +32,11 @@ class Classifier(nn.Module):
 
         self.classification_mode = classification_mode
 
-        self.features = models.mobilenet_v2(weights=MobileNet_V2_Weights.IMAGENET1K_V1).features       
+        self.features = models.resnet18(weights=ResNet18_Weights.IMAGENET1K_V1)
         # output of mobilenet_v2 will be 1280x23x40 for 720x1280 input images
         # output of mobilenet_v2 will be 1280x15x20 for 480x640 input images
+
+        # num_features = self.features.fc.in_features
 
 
         self.img_height = 224  # 720#480.0
@@ -41,21 +44,25 @@ class Classifier(nn.Module):
 
         # do dry run to determine output size of the backbone
         test_inp = torch.ones((1,3,self.img_height, self.img_width))
-        test_out = self.features(test_inp)
+        test_out = self.features(test_inp) # 1x2560x7x7
+        print(test_out.size())
         print("CLASSIFICATION MODE: ", self.classification_mode)
         if self.classification_mode == "binary":
             out_classes = 2
         elif self.classification_mode == "multi_class":
             out_classes = 37
 
-        self.head = nn.Linear(nn.Flatten(-3, -1)(test_out).size()[1], out_classes)
+        # print(test_out.size())
 
-        count=0
-        for child in self.features.children():
-            count+=1
-            if count < 19:
-                for param in list(child.parameters())[:]:
-                    param.requires_grad = False
+        self.head = nn.Linear((test_out).size()[1], out_classes)
+
+        # self.head = nn.Linear(nn.Flatten(-3, -1)(test_out).size()[1], out_classes)
+
+        for param in self.features.parameters():
+            param.requires_grad = False
+        # for child in self.features.children():
+        #     for param in list(child.parameters())[:]:
+        #         param.requires_grad = False
         
 
     def forward(self, inp: torch.Tensor) -> torch.Tensor:
@@ -70,8 +77,8 @@ class Classifier(nn.Module):
             The output tensor containing the class for the image (one hot encoded).
         """
         features = self.features(inp)
-        features_flat = nn.Flatten(-3,-1)(features)
-        out = self.head(features_flat)  # out size: n_batch x 2
+        # features_flat = nn.Flatten(-3,-1)(features)
+        out = self.head(features)  # out size: n_batch x 2
 
         # out = torch.nn.functional.softmax(out)
 
@@ -96,10 +103,11 @@ class Classifier(nn.Module):
       transform = transforms.Compose([
          transforms.PILToTensor(),
          transforms.ConvertImageDtype(torch.float),
+         transforms.Lambda(A.CustomCrop(0.1)),
+        #  transforms.RandomCrop((int(h-0.05*h),int(w-0.05*w))),
          transforms.Resize((224, 224), antialias=True),
          transforms.RandomHorizontalFlip(p=0.5),
-         transforms.RandomRotation(20),
-        #  transforms.ColorJitter(brightness=0.5, contrast=0.2, hue=0.3),
+        #  transforms.RandomRotation(20),
          transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
       ])
       transformed = transform(image)
