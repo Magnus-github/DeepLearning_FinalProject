@@ -117,7 +117,7 @@ class Classifier(nn.Module):
                           transforms.Lambda(A.CustomGaussianBlurr((5*M)/10)),
                           transforms.Lambda(A.CustomIdentity()),
                           transforms.Lambda(A.CustomRandomSolarize(threshold=((10-M)/10))),
-                        #   transforms.Lambda(A.CustomEqualization(p=M/10)),
+                          transforms.Lambda(A.Custom_equalization(p=M/10)),
                           transforms.RandomRotation((M*90)/10),
                           transforms.Compose([transforms.ConvertImageDtype(torch.uint8),transforms.RandomPosterize((8*M)/10), transforms.ConvertImageDtype(torch.float)]),
                           transforms.RandomAdjustSharpness(M),

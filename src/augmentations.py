@@ -101,22 +101,23 @@ class Cutout(object):
 
         return img
     
-    
+
 class Custom_equalization():
-    def __init__(self):
-        pass
+    def __init__(self, p):
+        self.p = p
 
     def __call__(self,image):
-        red, green, blue = image[0,:,:], image[1,:,:], image[2,:,:]
+        if random.random() < self.p:
+            red, green, blue = image[0,:,:], image[1,:,:], image[2,:,:]
 
-        #Apply histogram equalization to each channel
-        red_eq = self.equalize(red)
-        green_eq = self.equalize(green)
-        blue_eq = self.equalize(blue)
-        equalized_tensor = torch.stack((red_eq, green_eq, blue_eq))
+            #Apply histogram equalization to each channel
+            red_eq = self.equalize(red)
+            green_eq = self.equalize(green)
+            blue_eq = self.equalize(blue)
+            equalized_tensor = torch.stack((red_eq, green_eq, blue_eq))
 
 
-        return equalized_tensor
+            return equalized_tensor
 
     def equalize(self,channel):
         #flat=nn.Flatten(-1,1)(channel)
