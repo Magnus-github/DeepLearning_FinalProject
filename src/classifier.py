@@ -11,6 +11,7 @@ import torch.nn as nn
 from PIL import Image
 from torchvision import models, transforms
 from torchvision.models import ResNet18_Weights
+import augmentations as A
 
 
 class Classifier(nn.Module):
@@ -98,6 +99,7 @@ class Classifier(nn.Module):
       transform = transforms.Compose([
          transforms.PILToTensor(),
          transforms.ConvertImageDtype(torch.float),
+         transforms.Lambda(A.CustomCrop(0.1)),
         #  transforms.RandomCrop((int(h-0.05*h),int(w-0.05*w))),
          transforms.Resize((224, 224), antialias=True),
          transforms.RandomHorizontalFlip(p=0.5),

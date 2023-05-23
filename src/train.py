@@ -22,16 +22,16 @@ import sounddevice as sd
 import soundfile as sf
 
 CLASSIFICATION_MODE = "multi_class"
-VALIDATION_ITERATION = 2
+VALIDATION_ITERATION = 20
 VALIDATE = True
-NUM_ITERATIONS = 3000
-LEARNING_RATE = 5e-5
-LEARNING_RATE_MAX = 1e-3
+NUM_ITERATIONS = 1000
+LEARNING_RATE = 0.001#5e-5
+LEARNING_RATE_MAX = 0.001#1e-3
 BATCH_SIZE = 256
 TRAIN_SPLIT = 0.8
 VAL_SPLIT = 0.1
 TEST_SPLIT = 0.1
-LAMBDA = 0.0005
+LAMBDA = 5e-05
 LAYERS_TO_UNFREEZE = 3
 
 def compute_loss(
@@ -55,7 +55,7 @@ def compute_loss(
 def compute_accuracy(prediction: torch.Tensor, ground_truth: torch.Tensor):
     correct = prediction == ground_truth
     num_correct = torch.sum(correct).item()
-    acc = num_correct/len(ground_truth)
+    acc = num_correct/prediction.size(0)
     return acc
 
 
@@ -128,14 +128,14 @@ def train(device: str = "cpu") -> None:
 
     # init optimizer
     # optimizer = torch.optim.Adam(classifier.parameters(), lr=LEARNING_RATE, weight_decay=LAMBDA)
-    optimizer = torch.optim.SGD(classifier.parameters(), lr=LEARNING_RATE_MAX, momentum=0.9, nesterov=True)
+    optimizer = torch.optim.SGD(classifier.parameters(), lr=LEARNING_RATE, momentum=0.9, nesterov=True)
     # optimizer = torch.optim.SGD([{'params':list(classifier.parameters())[-1],
     #                               'lr': LEARNING_RATE},
     #                               {'params': list(classifier.parameters())[:-1],
     #                                'lr': LEARNING_RATE_MAX}],
     #                                 lr=LEARNING_RATE, momentum=0.9, weight_decay=LAMBDA)
     # scheduler = torch.optim.lr_scheduler.CyclicLR(optimizer, base_lr=LEARNING_RATE, max_lr=LEARNING_RATE_MAX, mode='triangular2')
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=20, T_mult=2, eta_min=LEARNING_RATE, verbose=False)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=40, T_mult=2, eta_min=0.8*LEARNING_RATE, verbose=False)
 
     classifier.eval()
 
@@ -152,9 +152,9 @@ def train(device: str = "cpu") -> None:
     print("Running {} epochs...".format(int(NUM_ITERATIONS/int(iter_p_epoch))))
     print("Training started...")
 
-    waveform, sample_rate = sf.read("./data/Startingtraining.wav", dtype='float32')
-    sd.play(waveform, sample_rate)
-    sd.wait()
+    # waveform, sample_rate = sf.read("./data/Startingtraining.wav", dtype='float32')
+    # sd.play(waveform, sample_rate)
+    # sd.wait()
 
     current_iteration = 1
     val_iteration = 1
@@ -231,15 +231,15 @@ def train(device: str = "cpu") -> None:
                         print("Validation acc: {}; Diff: {}".format(val_acc, val_acc-val_accs[-2]))
                         print("Training loss diff to last val step: {}".format(loss-train_losses[-2]))
 
-                        if abs(val_acc-val_accs[-2]) < 0.005:
-                            if unfreeze < LAYERS_TO_UNFREEZE+1:
-                                print("Unfreezing last {} layers of the pretrained model.".format(unfreeze))
-                                for param in list(classifier.features.parameters())[:-unfreeze]:
-                                    param.requires_grad = True
-                                # for child in classifier.features.children():                                
-                                #     for param in list(child.parameters())[:-unfreeze]:
-                                #         param.requires_grad = True
-                                unfreeze+=1
+                        # if abs(val_acc-val_accs[-2]) < 0.005:
+                        #     if unfreeze < LAYERS_TO_UNFREEZE+1:
+                        #         print("Unfreezing last {} layers of the pretrained model.".format(unfreeze))
+                        #         for param in list(classifier.features.parameters())[:-unfreeze]:
+                        #             param.requires_grad = True
+                        #         # for child in classifier.features.children():                                
+                        #         #     for param in list(child.parameters())[:-unfreeze]:
+                        #         #         param.requires_grad = True
+                        #         unfreeze+=1
                         if (val_loss-val_losses[-2]) > 0.0001:
                             print("Stopping training as validation loss is increasing.")
                             running = False
@@ -280,6 +280,10 @@ def train(device: str = "cpu") -> None:
 
     # print("Model weights saved at {}".format(model_path))
     # t = range(0,current_iteration+1,int((current_iteration+1)/(len(train_losses)-1)))
+
+    results_dir = "./outputs/best_config_weakaug_flipncrop/"
+    os.makedirs(results_dir, exist_ok=True)
+
     t = np.linspace(0, current_iteration, num=len(train_losses))
     plt.figure()
     plt.plot(t,train_losses,label="Training loss")
@@ -289,17 +293,22 @@ def train(device: str = "cpu") -> None:
     plt.title("Loss function")
     plt.legend()
     # plt.show()
-    plt.savefig("./outputs/plots/Losses.pdf", format="pdf", bbox_inches="tight")
+    plt.savefig(results_dir+"Losses.pdf", format="pdf", bbox_inches="tight")
 
     plt.figure()
     # plt.plot(t,train_accs,label="Training accuracy")
     plt.plot(t,val_accs, label="Validation accuracy")
-    plt.ylabel("Loss")
+    plt.ylabel("Accuracy")
     plt.xlabel("t")
-    plt.title("Loss function")
+    plt.title("Validation Accuracy")
     plt.legend()
     # plt.show()
-    plt.savefig("./outputs/plots/Accuracies.pdf", format="pdf", bbox_inches="tight")
+    plt.savefig(results_dir+"Accuracies.pdf", format="pdf", bbox_inches="tight")
+
+    # Save the parameter settings in a text file
+    accsfile = os.path.join(results_dir, "accuracy.txt")
+    with open(accsfile, "w") as f:
+        f.write(f"Accuracy: {acc}\n")
 
 
 def validate(
