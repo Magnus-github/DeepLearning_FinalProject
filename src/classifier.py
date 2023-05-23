@@ -10,8 +10,14 @@ import torch
 import torch.nn as nn
 from PIL import Image
 from torchvision import models, transforms
-from torchvision.models import ResNet18_Weights
+from torchvision.models import MobileNet_V2_Weights
 import augmentations as A
+import os
+
+import random
+import matplotlib.pyplot as plt
+
+from torchvision.models import ResNet18_Weights
 
 
 class Classifier(nn.Module):
@@ -93,8 +99,6 @@ class Classifier(nn.Module):
             transform:
                 The composition of transforms to be applied to the image.
         """
-      w,h = image.size
-      
 
       transform = transforms.Compose([
          transforms.PILToTensor(),
@@ -109,6 +113,50 @@ class Classifier(nn.Module):
       transformed = transform(image)
       return transformed
     
+
+    def rand_augment(self, image:Image) -> torch.Tensor:
+        """
+        Implement the randaugment algorithm.
+        """
+        N = 5 # number of augmentations to be applied (total numberof augmentations is K=14)
+        M = 8 # intensity of augmentations (intensitiy 0 <= M <= 10) -> linear scaling
+
+        transform_pool = [
+                          transforms.Lambda(A.CustomGaussianBlurr((5*M)/10)),
+                          transforms.Lambda(A.CustomIdentity()),
+                          transforms.Lambda(A.CustomRandomSolarize(threshold=((10-M)/10))),
+                          transforms.Lambda(A.Custom_equalization(p=M/10)),
+                          transforms.RandomRotation((M*90)/10),
+                          transforms.Compose([transforms.ConvertImageDtype(torch.uint8),transforms.RandomPosterize((8*M)/10), transforms.ConvertImageDtype(torch.float)]),
+                          transforms.RandomAdjustSharpness(M),
+                          transforms.RandomAffine(degrees=0, translate=((0.1*M)/10, 0)), # translate X
+                          transforms.RandomAffine(degrees=0, translate=(0, (0.1*M)/10)), # translate Y
+                          transforms.RandomAffine(degrees=0, shear=((20*M)/10)), # shear X
+                          transforms.RandomAffine(degrees=0, shear=(0, 0, -(20*M)/10, (20*M)/10)), # shear Y
+                          transforms.RandomAutocontrast(p=M/10),
+                          transforms.ColorJitter(brightness=(0.5*M)/10), # brightness
+                          transforms.ColorJitter(hue=(0.5*M)/10)
+                          ]
+        
+
+        transforms_to_use = random.choices(transform_pool, k=N)
+        print(transforms_to_use)
+
+
+        transform_list = [transforms.PILToTensor(), transforms.ConvertImageDtype(torch.float)]
+        
+        transform_list.extend(transforms_to_use)
+
+        transform_list.append(transforms.Resize((224,224), antialias=True))
+        transform_list.append(transforms.Lambda(A.Cutout(n_holes=1, length=16)))
+        transform_list.append(transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]))
+        
+
+        transform = transforms.Compose(transform_list)
+
+        return transform(image)
+    
+
     def test_transform(self, image: Image) -> Tuple[torch.Tensor]:
       """Prepare image and targets on loading.
 
@@ -165,4 +213,11 @@ class Classifier(nn.Module):
         return transform(img)
 
 # if __name__ == "__main__":
-#     Classifier()
+#     print(os.listdir(os.curdir))
+#     with Image.open("./data/images/beagle_19.jpg") as im:
+#         clf = Classifier()
+#         im.show()
+#         im = clf.rand_augment(im)
+#         itf = transforms.ToPILImage()
+#         im = itf(im)
+#         im.show()
