@@ -73,9 +73,6 @@ def grid_search(device: str = "cpu") -> None:
     global best_accuracy, best_parameters
     # wandb.init(project="Object_detection_wAugmentation-1")
 
-    # Init model
-    classifier = Classifier(classification_mode=CLASSIFICATION_MODE).to(device)
-
     # wandb.watch(classifier)
     root_dir = "."
     if "data" in os.listdir(os.curdir):
@@ -83,35 +80,9 @@ def grid_search(device: str = "cpu") -> None:
     else:
         root_dir = "../data/images/"
 
-    dataset = Pets(
-        root_dir=root_dir,
-        transform=classifier.input_transform,
-        classification_mode=CLASSIFICATION_MODE
-    )
-
-    val_dataset = Pets(
-        root_dir=root_dir,
-        transform=classifier.test_transform,
-        classification_mode=CLASSIFICATION_MODE
-    )
-
-
-    train_data, _ = random_split(dataset, [TRAIN_SPLIT, VAL_SPLIT],torch.Generator().manual_seed(69))
-    _, val_data = random_split(val_dataset, [TRAIN_SPLIT, VAL_SPLIT],torch.Generator().manual_seed(69))
-
     num_search = 1
     # ITERATING OVER BATCH SIZES
     for bs in batch_sizes:
-
-        train_dataloader = torch.utils.data.DataLoader(
-            train_data, batch_size=bs, shuffle=True
-        )
-
-
-        val_dataloader = torch.utils.data.DataLoader(
-            val_data, batch_size=bs , shuffle=False
-        )
-
         # ITERATING OVER WEIGHT DECAYS
         for wd in weight_decays:
             # ITERATING OVER LEARNING RATES
@@ -127,6 +98,34 @@ def grid_search(device: str = "cpu") -> None:
                     f.write(f"Learning Rate: {lr}\n")
                     f.write(f"Weight Decay: {wd}\n")
                     f.write(f"Batch Size: {bs}\n")
+                
+                # Init model
+                classifier = Classifier(classification_mode=CLASSIFICATION_MODE).to(device)
+
+                dataset = Pets(
+                    root_dir=root_dir,
+                    transform=classifier.input_transform,
+                    classification_mode=CLASSIFICATION_MODE
+                )
+
+                val_dataset = Pets(
+                    root_dir=root_dir,
+                    transform=classifier.test_transform,
+                    classification_mode=CLASSIFICATION_MODE
+                )
+
+
+                train_data, _ = random_split(dataset, [TRAIN_SPLIT, VAL_SPLIT],torch.Generator().manual_seed(69))
+                _, val_data = random_split(val_dataset, [TRAIN_SPLIT, VAL_SPLIT],torch.Generator().manual_seed(69))
+
+                train_dataloader = torch.utils.data.DataLoader(
+                    train_data, batch_size=bs, shuffle=True
+                )
+
+
+                val_dataloader = torch.utils.data.DataLoader(
+                    val_data, batch_size=bs , shuffle=False
+                )
 
                 # init optimizer
                 optimizer = torch.optim.SGD(classifier.parameters(), lr=lr, momentum=0.9, nesterov=True, weight_decay=wd)
@@ -144,6 +143,7 @@ def grid_search(device: str = "cpu") -> None:
 
                 iter_p_epoch = len(train_data)/bs
 
+                print("--------------------------------------------------------------------")
                 print("Running {} epochs...".format(int(NUM_ITERATIONS/int(iter_p_epoch))))
                 print("Training started...")
 
@@ -222,40 +222,40 @@ def grid_search(device: str = "cpu") -> None:
                             running = False
                             break
             
-                    # waveform, sample_rate = sf.read("./data/Ichhabefertig.wav", dtype='float32')
-                    # sd.play(waveform, sample_rate)
-                    # sd.wait()
-                    print("\nTraining completed")
+                # waveform, sample_rate = sf.read("./data/Ichhabefertig.wav", dtype='float32')
+                # sd.play(waveform, sample_rate)
+                # sd.wait()
+                print("\nTraining completed")
 
 
-                    t = np.linspace(0, current_iteration, num=len(train_losses))
-                    plt.figure()
-                    plt.plot(t,train_losses,label="Training loss")
-                    plt.plot(t,val_losses, label="Validation loss")
-                    plt.ylabel("Loss")
-                    plt.xlabel("t")
-                    plt.title("Loss function")
-                    plt.legend()
-                    plt.savefig(param_dir+"/Losses.pdf", format="pdf", bbox_inches="tight")
+                t = np.linspace(0, current_iteration, num=len(train_losses))
+                plt.figure()
+                plt.plot(t,train_losses,label="Training loss")
+                plt.plot(t,val_losses, label="Validation loss")
+                plt.ylabel("Loss")
+                plt.xlabel("t")
+                plt.title("Loss function")
+                plt.legend()
+                plt.savefig(param_dir+"/Losses.pdf", format="pdf", bbox_inches="tight")
 
-                    plt.figure()
-                    # plt.plot(t,train_accs,label="Training accuracy")
-                    plt.plot(t,val_accs, label="Validation accuracy")
-                    plt.ylabel("Accuracy")
-                    plt.xlabel("t")
-                    plt.title("Validation accuracy")
-                    plt.legend()
-                    plt.savefig(param_dir+"/Accuracies.pdf", format="pdf", bbox_inches="tight")
+                plt.figure()
+                # plt.plot(t,train_accs,label="Training accuracy")
+                plt.plot(t,val_accs, label="Validation accuracy")
+                plt.ylabel("Accuracy")
+                plt.xlabel("t")
+                plt.title("Validation accuracy")
+                plt.legend()
+                plt.savefig(param_dir+"/Accuracies.pdf", format="pdf", bbox_inches="tight")
 
-                    if val_accs[-1] > best_accuracy:
-                        best_accuracy = val_accs[-1]
-                        best_parameters["batch size"] = bs
-                        best_parameters["Learning Rate"] = lr
-                        best_parameters["Weight decay"] = wd
-                        print("Current best accuracy: ",best_accuracy)
-                        print("Parameters: ", best_parameters)
+                if val_accs[-1] > best_accuracy:
+                    best_accuracy = val_accs[-1]
+                    best_parameters["batch size"] = bs
+                    best_parameters["Learning Rate"] = lr
+                    best_parameters["Weight decay"] = wd
+                    print("Current best accuracy: ",best_accuracy)
+                    print("Parameters: ", best_parameters)
 
-                    num_search += 1
+                num_search += 1
 
 
 def validate(
