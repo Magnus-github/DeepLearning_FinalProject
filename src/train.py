@@ -31,8 +31,8 @@ BATCH_SIZE = 256
 TRAIN_SPLIT = 0.8
 VAL_SPLIT = 0.1
 TEST_SPLIT = 0.1
-LAMBDA = 5e-05
-LAYERS_TO_UNFREEZE = 3
+LAMBDA = 5e-04
+LAYERS_TO_UNFREEZE = 5
 
 def compute_loss(
     prediction_batch: torch.Tensor, target_batch: torch.Tensor
@@ -138,7 +138,7 @@ def train(device: str = "cpu") -> None:
     #                                'lr': LEARNING_RATE_MAX}],
     #                                 lr=LEARNING_RATE, momentum=0.9, weight_decay=LAMBDA)
     # scheduler = torch.optim.lr_scheduler.CyclicLR(optimizer, base_lr=LEARNING_RATE, max_lr=LEARNING_RATE_MAX, mode='triangular2')
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=40, T_mult=2, eta_min=0.8*LEARNING_RATE, verbose=False)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=40, T_mult=2, eta_min=0.9*LEARNING_RATE, verbose=False)
 
     classifier.eval()
 
@@ -155,9 +155,9 @@ def train(device: str = "cpu") -> None:
     print("Running {} epochs...".format(int(NUM_ITERATIONS/int(iter_p_epoch))))
     print("Training started...")
 
-    # waveform, sample_rate = sf.read("./data/Startingtraining.wav", dtype='float32')
-    # sd.play(waveform, sample_rate)
-    # sd.wait()
+    waveform, sample_rate = sf.read("./data/Startingtraining.wav", dtype='float32')
+    sd.play(waveform, sample_rate)
+    sd.wait()
 
     current_iteration = 1
     val_iteration = 1
@@ -234,15 +234,15 @@ def train(device: str = "cpu") -> None:
                         print("Validation acc: {}; Diff: {}".format(val_acc, val_acc-val_accs[-2]))
                         print("Training loss diff to last val step: {}".format(loss-train_losses[-2]))
 
-                        # if abs(val_acc-val_accs[-2]) < 0.005:
-                        #     if unfreeze < LAYERS_TO_UNFREEZE+1:
-                        #         print("Unfreezing last {} layers of the pretrained model.".format(unfreeze))
-                        #         for param in list(classifier.features.parameters())[:-unfreeze]:
-                        #             param.requires_grad = True
-                        #         # for child in classifier.features.children():                                
-                        #         #     for param in list(child.parameters())[:-unfreeze]:
-                        #         #         param.requires_grad = True
-                        #         unfreeze+=1
+                        if abs(val_acc-val_accs[-2]) < 0.005:
+                            if unfreeze < LAYERS_TO_UNFREEZE+1:
+                                print("Unfreezing last {} layers of the pretrained model.".format(unfreeze))
+                                for param in list(classifier.features.parameters())[:-unfreeze]:
+                                    param.requires_grad = True
+                                # for child in classifier.features.children():                                
+                                #     for param in list(child.parameters())[:-unfreeze]:
+                                #         param.requires_grad = True
+                                unfreeze+=1
                         if (val_loss-val_losses[-2]) > 0.0001:
                             print("Stopping training as validation loss is increasing.")
                             running = False
@@ -284,7 +284,7 @@ def train(device: str = "cpu") -> None:
     # print("Model weights saved at {}".format(model_path))
     # t = range(0,current_iteration+1,int((current_iteration+1)/(len(train_losses)-1)))
 
-    results_dir = "./outputs/best_config_weakaug_flipncrop/"
+    results_dir = "./outputs/best_config_unfreeze5/"
     os.makedirs(results_dir, exist_ok=True)
 
     t = np.linspace(0, current_iteration, num=len(train_losses))

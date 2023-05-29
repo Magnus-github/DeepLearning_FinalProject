@@ -103,10 +103,10 @@ class Classifier(nn.Module):
       transform = transforms.Compose([
          transforms.PILToTensor(),
          transforms.ConvertImageDtype(torch.float),
-         transforms.Lambda(A.CustomCrop(0.1)),
+        #  transforms.Lambda(A.CustomCrop(0.1)),
         #  transforms.RandomCrop((int(h-0.05*h),int(w-0.05*w))),
          transforms.Resize((224, 224), antialias=True),
-         transforms.RandomHorizontalFlip(p=0.5),
+        #  transforms.RandomHorizontalFlip(p=0.5),
         #  transforms.RandomRotation(20),
          transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
       ])
@@ -118,14 +118,15 @@ class Classifier(nn.Module):
         """
         Implement the randaugment algorithm.
         """
-        N = 5 # number of augmentations to be applied (total numberof augmentations is K=14)
+        N = 2 # number of augmentations to be applied (total numberof augmentations is K=14)
         M = 8 # intensity of augmentations (intensitiy 0 <= M <= 10) -> linear scaling
 
         transform_pool = [
                           transforms.Lambda(A.CustomGaussianBlurr((5*M)/10)),
                           transforms.Lambda(A.CustomIdentity()),
                           transforms.Lambda(A.CustomRandomSolarize(threshold=((10-M)/10))),
-                          transforms.Lambda(A.Custom_equalization(p=M/10)),
+                        #   transforms.Compose([transforms.ConvertImageDtype(torch.uint8),transforms.Lambda(A.Custom_equalization(p=M/10)), transforms.ConvertImageDtype(torch.float)]),
+                          transforms.Compose([transforms.ConvertImageDtype(torch.uint8),transforms.RandomEqualize(p=M/10), transforms.ConvertImageDtype(torch.float)]),
                           transforms.RandomRotation((M*90)/10),
                           transforms.Compose([transforms.ConvertImageDtype(torch.uint8),transforms.RandomPosterize((8*M)/10), transforms.ConvertImageDtype(torch.float)]),
                           transforms.RandomAdjustSharpness(M),
@@ -140,7 +141,7 @@ class Classifier(nn.Module):
         
 
         transforms_to_use = random.choices(transform_pool, k=N)
-        print(transforms_to_use)
+        # print(transforms_to_use)
 
 
         transform_list = [transforms.PILToTensor(), transforms.ConvertImageDtype(torch.float)]
@@ -148,7 +149,8 @@ class Classifier(nn.Module):
         transform_list.extend(transforms_to_use)
 
         transform_list.append(transforms.Resize((224,224), antialias=True))
-        transform_list.append(transforms.Lambda(A.Cutout(n_holes=1, length=16)))
+        # transform_list.append(transforms.Lambda(A.Cutout(n_holes=1, length=16)))
+        transform_list.append(transforms.ConvertImageDtype(torch.float))
         transform_list.append(transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]))
         
 
@@ -205,9 +207,10 @@ class Classifier(nn.Module):
         """
         transform = transforms.Compose([
          transforms.PILToTensor(),
+         transforms.RandAugment(num_ops=2, magnitude=8),
          transforms.ConvertImageDtype(torch.float),
          transforms.Resize((224, 224), antialias=True),
-         transforms.RandAugment(),
+         transforms.Lambda(A.Cutout(n_holes=1, length=16)),
          transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
         return transform(img)

@@ -119,6 +119,7 @@ class Custom_equalization():
             green_eq = self.equalize(green)
             blue_eq = self.equalize(blue)
             equalized_tensor = torch.stack((red_eq, green_eq, blue_eq))
+            print(equalized_tensor.size())
 
 
             return equalized_tensor
