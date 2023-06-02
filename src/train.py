@@ -64,10 +64,19 @@ def train(device: str = "cpu") -> None:
         root_dir = "./data/images/"
     else:
         root_dir = "../data/images/"
+<<<<<<< HEAD
     datasettrain = Pets(
+=======
+    dataset_train = Pets(
+>>>>>>> 31d700cc7729bdf5ffd01f3ad642ed981cb0cca1
         root_dir=root_dir,
-        transform=classifier.input_transform,
-        classification_mode="multi_class"
+        transform=classifier.input_transform_training,
+        classification_mode="binary"
+    )
+    dataset_test = Pets(
+	    root_dir=root_dir,
+	    transform=classifier.input_transform_testing,
+	    classification_mode="binary"
     )
     datasettest = Pets(
         root_dir=root_dir,
@@ -76,6 +85,7 @@ def train(device: str = "cpu") -> None:
     )
 
     try:
+<<<<<<< HEAD
         train_data, val_data, test_data = random_split(datasettrain, [TRAIN_SPLIT, VAL_SPLIT,TEST_SPLIT])
     except:
         train_split = int(TRAIN_SPLIT * len(datasettrain))
@@ -84,6 +94,24 @@ def train(device: str = "cpu") -> None:
 
         train_data, _, _ = random_split(datasettrain, [train_split, val_split, test_split])
         _,val_data, test_data= random_split(datasettest, [train_split, val_split, test_split])
+=======
+        train_data, _, _ = random_split(dataset_train, [TRAIN_SPLIT, VAL_SPLIT,TEST_SPLIT],
+                                                       generator=torch.Generator().manual_seed(42))
+        _, val_data, test_data = random_split(dataset_test, [TRAIN_SPLIT, VAL_SPLIT, TEST_SPLIT],
+                                                       generator=torch.Generator().manual_seed(42))
+    except:
+        TRAIN_SPLIT = int(TRAIN_SPLIT * len(dataset_train))
+        VAL_SPLIT = int(VAL_SPLIT * len(dataset_test))
+        TEST_SPLIT = int(len(dataset_test)- TRAIN_SPLIT-VAL_SPLIT)
+
+        train_data, _, _ = random_split(dataset_train, [TRAIN_SPLIT, VAL_SPLIT, TEST_SPLIT],
+                                        generator=torch.Generator().manual_seed(42))
+        _, val_data, test_data = random_split(dataset_test, [TRAIN_SPLIT, VAL_SPLIT, TEST_SPLIT],
+                                              generator=torch.Generator().manual_seed(42))
+
+
+
+>>>>>>> 31d700cc7729bdf5ffd01f3ad642ed981cb0cca1
 
     train_dataloader = torch.utils.data.DataLoader(
         train_data, batch_size=BATCH_SIZE, shuffle=True
