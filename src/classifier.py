@@ -102,7 +102,6 @@ class Classifier(nn.Module):
                 The composition of transforms to be applied to the image.
         """
 
-<<<<<<< HEAD
       transform = transforms.Compose([
          transforms.PILToTensor(),
          transforms.ConvertImageDtype(torch.float),
@@ -177,43 +176,6 @@ class Classifier(nn.Module):
                 The composition of transforms to be applied to the image.
         """
     
-=======
-      def crop_image(image):
-          """Crop the images so only a specific region of interest is shown to my PyTorch model"""
-
-          cut = 0.1
-          splitxL = cut * random.random()
-          splitxR = (1-cut) + cut * random.random()
-
-          splityD = cut * random.random()
-          splityU = (1-cut) + cut * random.random()
-
-          #for i in range(2):
-
-
-          image = image[:, int(image.shape[1] * splityD):int(image.shape[1] * splityU),
-                  int(image.shape[2] * splitxL):int(image.shape[2] * splitxR)]
-
-          return image
-
-
-      def HorizontalFlip(image):
-          """Crop the images so only a specific region of interest is shown to my PyTorch model"""
-
-          #WORK IN PROGRESS
-          r = random.randint(0,1)
-          if r == 0:
-              torch.flip(image,dims=(0,))
-          else:
-              pass
-
-
-
-          image = image[:, int(image.shape[1] * splityD):int(image.shape[1] * splityU),
-                  int(image.shape[2] * splitxL):int(image.shape[2] * splitxR)]
-
-          return image
->>>>>>> cc4e0f8408a02da3f60ef73a68ee1f25f34cef29
 
       transform = transforms.Compose([
          transforms.PILToTensor(),
