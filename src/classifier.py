@@ -11,6 +11,13 @@ import torch.nn as nn
 from PIL import Image
 from torchvision import models, transforms
 from torchvision.models import MobileNet_V2_Weights
+import augmentations as A
+import os
+
+import random
+import matplotlib.pyplot as plt
+
+from torchvision.models import ResNet18_Weights
 
 import random
 
@@ -27,9 +34,11 @@ class Classifier(nn.Module):
 
         self.classification_mode = classification_mode
 
-        self.features = models.mobilenet_v2(weights=MobileNet_V2_Weights.IMAGENET1K_V1).features       
+        self.features = models.resnet18(weights=ResNet18_Weights.IMAGENET1K_V1)
         # output of mobilenet_v2 will be 1280x23x40 for 720x1280 input images
         # output of mobilenet_v2 will be 1280x15x20 for 480x640 input images
+
+        # num_features = self.features.fc.in_features
 
 
         self.img_height = 224  # 720#480.0
@@ -37,21 +46,25 @@ class Classifier(nn.Module):
 
         # do dry run to determine output size of the backbone
         test_inp = torch.ones((1,3,self.img_height, self.img_width))
-        test_out = self.features(test_inp)
+        test_out = self.features(test_inp) # 1x2560x7x7
+        print(test_out.size())
         print("CLASSIFICATION MODE: ", self.classification_mode)
         if self.classification_mode == "binary":
             out_classes = 2
         elif self.classification_mode == "multi_class":
             out_classes = 37
 
-        self.head = nn.Linear(nn.Flatten(-3, -1)(test_out).size()[1], out_classes)
+        # print(test_out.size())
 
-        count=0
-        for child in self.features.children():
-            count+=1
-            if count > 10:
-                for param in child.parameters():
-                    param.requires_grad = False
+        self.head = nn.Linear((test_out).size()[1], out_classes)
+
+        # self.head = nn.Linear(nn.Flatten(-3, -1)(test_out).size()[1], out_classes)
+
+        for param in self.features.parameters():
+            param.requires_grad = False
+        # for child in self.features.children():
+        #     for param in list(child.parameters())[:]:
+        #         param.requires_grad = False
         
 
     def forward(self, inp: torch.Tensor) -> torch.Tensor:
@@ -66,8 +79,8 @@ class Classifier(nn.Module):
             The output tensor containing the class for the image (one hot encoded).
         """
         features = self.features(inp)
-        features_flat = nn.Flatten(-3,-1)(features)
-        out = self.head(features_flat)  # out size: n_batch x 2
+        # features_flat = nn.Flatten(-3,-1)(features)
+        out = self.head(features)  # out size: n_batch x 2
 
         # out = torch.nn.functional.softmax(out)
 
@@ -89,53 +102,121 @@ class Classifier(nn.Module):
                 The composition of transforms to be applied to the image.
         """
 
-      def crop_image(image):
-          """Crop the images so only a specific region of interest is shown to my PyTorch model"""
+      transform = transforms.Compose([
+         transforms.PILToTensor(),
+         transforms.ConvertImageDtype(torch.float),
+        #  transforms.Lambda(A.CustomCrop(0.1)),
+        #  transforms.RandomCrop((int(h-0.05*h),int(w-0.05*w))),
+         transforms.Resize((224, 224), antialias=True),
+        #  transforms.RandomHorizontalFlip(p=0.5),
+        #  transforms.RandomRotation(20),
+         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+      ])
+      transformed = transform(image)
+      return transformed
+    
 
-          cut = 0.1
-          splitxL = cut * random.random()
-          splitxR = (1-cut) + cut * random.random()
+    def rand_augment(self, image:Image) -> torch.Tensor:
+        """
+        Implement the randaugment algorithm.
+        """
+        N = 2 # number of augmentations to be applied (total numberof augmentations is K=14)
+        M = 8 # intensity of augmentations (intensitiy 0 <= M <= 10) -> linear scaling
 
-          splityD = cut * random.random()
-          splityU = (1-cut) + cut * random.random()
+        transform_pool = [
+                          transforms.Lambda(A.CustomGaussianBlurr((5*M)/10)),
+                          transforms.Lambda(A.CustomIdentity()),
+                          transforms.Lambda(A.CustomRandomSolarize(threshold=((10-M)/10))),
+                        #   transforms.Compose([transforms.ConvertImageDtype(torch.uint8),transforms.Lambda(A.Custom_equalization(p=M/10)), transforms.ConvertImageDtype(torch.float)]),
+                          transforms.Compose([transforms.ConvertImageDtype(torch.uint8),transforms.RandomEqualize(p=M/10), transforms.ConvertImageDtype(torch.float)]),
+                          transforms.RandomRotation((M*90)/10),
+                          transforms.Compose([transforms.ConvertImageDtype(torch.uint8),transforms.RandomPosterize((8*M)/10), transforms.ConvertImageDtype(torch.float)]),
+                          transforms.RandomAdjustSharpness(M),
+                          transforms.RandomAffine(degrees=0, translate=((0.1*M)/10, 0)), # translate X
+                          transforms.RandomAffine(degrees=0, translate=(0, (0.1*M)/10)), # translate Y
+                          transforms.RandomAffine(degrees=0, shear=((20*M)/10)), # shear X
+                          transforms.RandomAffine(degrees=0, shear=(0, 0, -(20*M)/10, (20*M)/10)), # shear Y
+                          transforms.RandomAutocontrast(p=M/10),
+                          transforms.ColorJitter(brightness=(0.5*M)/10), # brightness
+                          transforms.ColorJitter(hue=(0.5*M)/10)
+                          ]
+        
 
-          #for i in range(2):
+        transforms_to_use = random.choices(transform_pool, k=N)
+        # print(transforms_to_use)
 
 
-          image = image[:, int(image.shape[1] * splityD):int(image.shape[1] * splityU),
-                  int(image.shape[2] * splitxL):int(image.shape[2] * splitxR)]
+        transform_list = [transforms.PILToTensor(), transforms.ConvertImageDtype(torch.float)]
+        
+        transform_list.extend(transforms_to_use)
 
-          return image
+        transform_list.append(transforms.Resize((224,224), antialias=True))
+        # transform_list.append(transforms.Lambda(A.Cutout(n_holes=1, length=16)))
+        transform_list.append(transforms.ConvertImageDtype(torch.float))
+        transform_list.append(transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]))
+        
 
+        transform = transforms.Compose(transform_list)
 
-      def HorizontalFlip(image):
-          """Crop the images so only a specific region of interest is shown to my PyTorch model"""
+        return transform(image)
+    
 
-          #WORK IN PROGRESS
-          r = random.randint(0,1)
-          if r == 0:
-              torch.flip(image,dims=(0,))
-          else:
-              pass
+    def test_transform(self, image: Image) -> Tuple[torch.Tensor]:
+      """Prepare image and targets on loading.
 
+        This function is called before an image is added to a batch.
+        Must be passed as transforms function to dataset.
 
+        Args:
+            image:
+                The image loaded from the dataset.
 
-          image = image[:, int(image.shape[1] * splityD):int(image.shape[1] * splityU),
-                  int(image.shape[2] * splitxL):int(image.shape[2] * splitxR)]
-
-          return image
+        Returns:
+            transform:
+                The composition of transforms to be applied to the image.
+        """
+    
 
       transform = transforms.Compose([
          transforms.PILToTensor(),
          transforms.ConvertImageDtype(torch.float),
          transforms.Lambda(crop_image),                        # own LAMBDA
          transforms.Resize((224, 224), antialias=True),
-         transforms.RandomHorizontalFlip(p=0.5),
-        #  transforms.ColorJitter(brightness=0.5, contrast=0.2, hue=0.3),
          transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
       ])
       transformed = transform(image)
       return transformed
+    
+
+    def weak_FM_transform(self, img: Image) -> torch.Tensor:
+        """
+        Perform a weak augmentation on a batch of images. Note, that the images are
+        already transforemd to tensors and the correct size!
+        """
+        transform = transforms.Compose([
+         transforms.PILToTensor(),
+         transforms.ConvertImageDtype(torch.float),
+         transforms.Resize((224, 224), antialias=True),
+         transforms.RandomHorizontalFlip(p=0.5),
+         transforms.RandomAffine(degrees=0, translate=(0.125,0.125)),
+         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+      ])    
+        return transform(img)
+    
+
+    def strong_FM_transform(self, img: Image) -> torch.Tensor:
+        """
+        Perform a strong augmentation (RandAugment) on a batch of images. Note, that the images are already transforemd to tensors and the correct size!
+        """
+        transform = transforms.Compose([
+         transforms.PILToTensor(),
+         transforms.RandAugment(num_ops=2, magnitude=8),
+         transforms.ConvertImageDtype(torch.float),
+         transforms.Resize((224, 224), antialias=True),
+         transforms.Lambda(A.Cutout(n_holes=1, length=16)),
+         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        ])
+        return transform(img)
 
 
 
@@ -169,4 +250,11 @@ class Classifier(nn.Module):
 
 
 # if __name__ == "__main__":
-#     Classifier()
+#     print(os.listdir(os.curdir))
+#     with Image.open("./data/images/beagle_19.jpg") as im:
+#         clf = Classifier()
+#         im.show()
+#         im = clf.rand_augment(im)
+#         itf = transforms.ToPILImage()
+#         im = itf(im)
+#         im.show()
