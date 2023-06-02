@@ -23,11 +23,17 @@ import soundfile as sf
 
 CLASSIFICATION_MODE = "multi_class"
 VALIDATION_ITERATION = 20
+<<<<<<< HEAD
 VALIDATE = True
 NUM_ITERATIONS = 1000
 LEARNING_RATE = 0.001#5e-5
 LEARNING_RATE_MAX = 0.001#1e-3
 BATCH_SIZE = 256
+=======
+NUM_ITERATIONS = 100
+LEARNING_RATE = 1e-5
+BATCH_SIZE = 95
+>>>>>>> cc4e0f8408a02da3f60ef73a68ee1f25f34cef29
 TRAIN_SPLIT = 0.8
 VAL_SPLIT = 0.1
 TEST_SPLIT = 0.1
@@ -92,18 +98,15 @@ def train(device: str = "cpu") -> None:
         transform=classifier.test_transform,
         classification_mode=CLASSIFICATION_MODE
     )
+    datasettest = Pets(
+        root_dir=root_dir,
+        transform=classifier.test_transform,
+        classification_mode="multi_class"
+    )
 
 
-    try:
-        train_data, _, _ = random_split(dataset, [TRAIN_SPLIT, VAL_SPLIT,TEST_SPLIT],torch.Generator().manual_seed(69))
-        _, val_data, test_data = random_split(val_dataset, [TRAIN_SPLIT, VAL_SPLIT,TEST_SPLIT],torch.Generator().manual_seed(69))
-    except:
-        train_split = int(TRAIN_SPLIT * len(dataset))
-        val_split = int(VAL_SPLIT * len(dataset))
-        test_split = int(len(dataset)- train_split-val_split)
-
-        train_data, _, _ = random_split(dataset, [train_split, val_split, test_split],torch.Generator().manual_seed(69))
-        _, val_data, test_data = random_split(val_dataset, [train_split, val_split, test_split],torch.Generator().manual_seed(69))
+    train_data, _, _ = random_split(dataset, [TRAIN_SPLIT, VAL_SPLIT,TEST_SPLIT],torch.Generator().manual_seed(69))
+    _, val_data, test_data = random_split(val_dataset, [TRAIN_SPLIT, VAL_SPLIT,TEST_SPLIT],torch.Generator().manual_seed(69))
 
     train_dataloader = torch.utils.data.DataLoader(
         train_data, batch_size=BATCH_SIZE, shuffle=True

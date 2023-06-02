@@ -19,6 +19,8 @@ import matplotlib.pyplot as plt
 
 from torchvision.models import ResNet18_Weights
 
+import random
+
 
 class Classifier(nn.Module):
     """Baseline module for object classification."""
@@ -100,6 +102,7 @@ class Classifier(nn.Module):
                 The composition of transforms to be applied to the image.
         """
 
+<<<<<<< HEAD
       transform = transforms.Compose([
          transforms.PILToTensor(),
          transforms.ConvertImageDtype(torch.float),
@@ -174,10 +177,48 @@ class Classifier(nn.Module):
                 The composition of transforms to be applied to the image.
         """
     
+=======
+      def crop_image(image):
+          """Crop the images so only a specific region of interest is shown to my PyTorch model"""
+
+          cut = 0.1
+          splitxL = cut * random.random()
+          splitxR = (1-cut) + cut * random.random()
+
+          splityD = cut * random.random()
+          splityU = (1-cut) + cut * random.random()
+
+          #for i in range(2):
+
+
+          image = image[:, int(image.shape[1] * splityD):int(image.shape[1] * splityU),
+                  int(image.shape[2] * splitxL):int(image.shape[2] * splitxR)]
+
+          return image
+
+
+      def HorizontalFlip(image):
+          """Crop the images so only a specific region of interest is shown to my PyTorch model"""
+
+          #WORK IN PROGRESS
+          r = random.randint(0,1)
+          if r == 0:
+              torch.flip(image,dims=(0,))
+          else:
+              pass
+
+
+
+          image = image[:, int(image.shape[1] * splityD):int(image.shape[1] * splityU),
+                  int(image.shape[2] * splitxL):int(image.shape[2] * splitxR)]
+
+          return image
+>>>>>>> cc4e0f8408a02da3f60ef73a68ee1f25f34cef29
 
       transform = transforms.Compose([
          transforms.PILToTensor(),
          transforms.ConvertImageDtype(torch.float),
+         transforms.Lambda(crop_image),                        # own LAMBDA
          transforms.Resize((224, 224), antialias=True),
          transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
       ])
@@ -214,6 +255,37 @@ class Classifier(nn.Module):
          transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
         return transform(img)
+
+
+
+
+    def test_transform(self, image: Image) -> Tuple[torch.Tensor]:
+      """Prepare image and targets on loading.
+
+        This function is called before an image is added to a batch.
+        Must be passed as transforms function to dataset.
+
+        Args:
+            image:
+                The image loaded from the dataset.
+
+        Returns:
+            transform:
+                The composition of transforms to be applied to the image.
+        """
+
+
+      transform = transforms.Compose([
+         transforms.PILToTensor(),
+         transforms.ConvertImageDtype(torch.float),
+         transforms.Resize((224, 224), antialias=True),
+        #  transforms.ColorJitter(brightness=0.5, contrast=0.2, hue=0.3),
+         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+      ])
+      transformed = transform(image)
+      return transformed
+
+
 
 # if __name__ == "__main__":
 #     print(os.listdir(os.curdir))
